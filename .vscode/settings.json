@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "iostream": "cpp",
+        "fstream": "cpp",
+        "string": "cpp",
+        "map": "cpp",
+        "chrono": "cpp",
+        "set": "cpp",
+        "functional": "cpp",
+        "iomanip": "cpp",
+        "atomic": "cpp"
+    }
+}

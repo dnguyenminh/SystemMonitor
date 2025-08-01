@@ -5,30 +5,53 @@
 #include <atomic>
 #include <memory>
 
-class SystemMonitor {
+// Abstract base class for system monitoring
+class ISystemMonitor {
 public:
-    SystemMonitor();
-    ~SystemMonitor() = default;
+    virtual ~ISystemMonitor() = default;
+    virtual SystemUsage getSystemUsage() = 0;
+    virtual SystemMetrics getCurrentMetrics() const = 0;
+    virtual bool initialize() = 0;
+    virtual void shutdown() = 0;
+};
 
-    // Delete copy constructor and assignment operator
-    SystemMonitor(const SystemMonitor&) = delete;
-    SystemMonitor& operator=(const SystemMonitor&) = delete;
-
-    // Get current system metrics
-    SystemUsage GetSystemUsage();
-    
-    // Get the current system metrics snapshot
-    SystemMetrics GetCurrentMetrics() const;
-
+// Concrete system monitor implementation
+class WindowsSystemMonitor : public ISystemMonitor {
 private:
-    // Helper functions
-    CpuTimes GetSystemCpuTimes();
-    double GetDiskUsage();
-    void UpdateSystemInfo();
-
-    // Member variables
     mutable std::mutex metricsMutex;
     SystemMetrics currentMetrics;
     std::atomic<bool> isFirstMeasurement;
     CpuTimes lastCpuTimes;
+    bool initialized = false;
+
+    // Helper methods
+    CpuTimes getSystemCpuTimes() const;
+    double calculateDiskUsage() const;
+    void updateSystemInfo();
+
+public:
+    WindowsSystemMonitor();
+    ~WindowsSystemMonitor() override;
+
+    // Delete copy constructor and assignment operator
+    WindowsSystemMonitor(const WindowsSystemMonitor&) = delete;
+    WindowsSystemMonitor& operator=(const WindowsSystemMonitor&) = delete;
+
+    // ISystemMonitor interface implementation
+    SystemUsage getSystemUsage() override;
+    SystemMetrics getCurrentMetrics() const override;
+    bool initialize() override;
+    void shutdown() override;
+
+    // Windows-specific methods
+    bool isInitialized() const { return initialized; }
+    void reset();
+};
+
+// System monitor factory
+class SystemMonitorFactory {
+public:
+    static std::unique_ptr<ISystemMonitor> createWindowsMonitor();
+    static std::unique_ptr<ISystemMonitor> createLinuxMonitor();  // Future expansion
+    static std::unique_ptr<ISystemMonitor> createCrossPlatformMonitor();
 };

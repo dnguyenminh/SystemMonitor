@@ -5214,3 +5214,9 @@
 01-08-2025 20:53:12 - Total process RAM: 27.840646% vs System: 42.236480%
 01-08-2025 20:53:12 - Total process Disk: 32.046897% vs System: 32.049933%
 01-08-2025 20:53:12 - Completed log file writing.
+01-08-2025 21:34:53 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur
+01-08-2025 21:49:28 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur
+01-08-2025 22:06:53 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur
+01-08-2025 22:08:43 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur
+01-08-2025 22:14:23 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur
+01-08-2025 22:18:44 - Exception in getSystemUsage: resource deadlock would occur: resource deadlock would occur

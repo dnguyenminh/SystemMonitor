@@ -1,54 +1,81 @@
 #include "../include/Configuration.h"
 #include <iostream>
 #include <fstream>
-#include <string.h> // For strcmp
+#include <string.h>
+#include <algorithm>
+#include <vector>
+#include <algorithm> // For std::find
 
-// Validate threshold is within range 0-100
-double ValidateThreshold(const char* value, const char* paramName) {
+// BaseConfig implementation
+bool BaseConfig::validate() const {
+    return cpuThreshold >= 0 && cpuThreshold <= 100 &&
+           ramThreshold >= 0 && ramThreshold <= 100 &&
+           diskThreshold >= 0 && diskThreshold <= 100 &&
+           monitorInterval >= 1000;
+}
+
+void BaseConfig::setDefaults() {
+    cpuThreshold = 80.0;
+    ramThreshold = 80.0;
+    diskThreshold = 80.0;
+    monitorInterval = 5000;
+    debugMode = false;
+}
+
+// MonitorConfig implementation
+MonitorConfig::MonitorConfig() {
+    setDefaults();
+}
+
+MonitorConfig::MonitorConfig(const LogConfig& logCfg) : logConfig(logCfg) {
+    setDefaults();
+    logFilePath = logConfig.getLogPath();
+}
+
+bool MonitorConfig::validate() const {
+    return BaseConfig::validate() && !logFilePath.empty();
+}
+
+void MonitorConfig::setDefaults() {
+    BaseConfig::setDefaults();
+    logFilePath = "SystemMonitor.log";
+    logConfig = LogConfig();
+}
+
+// ConfigurationManager implementation
+ConfigurationManager::ConfigurationManager() {
+    config.setDefaults();
+}
+
+ConfigurationManager::ConfigurationManager(const MonitorConfig& initialConfig) : config(initialConfig) {}
+
+double ConfigurationManager::validateThreshold(const std::string& value, const std::string& paramName) const {
     try {
         double val = std::stod(value);
         if (val < 0.0 || val > 100.0) {
             std::cerr << "Error: " << paramName << " threshold must be between 0 and 100. Using default value." << std::endl;
-            return 80.0; // Default value
+            return 80.0;
         }
         return val;
     } catch (const std::exception& e) {
         std::cerr << "Error parsing " << paramName << " value '" << value << "': " << e.what() << std::endl;
-        return 80.0; // Default value
+        return 80.0;
     }
 }
 
-// Check if a string is a valid parameter name
-bool IsValidParameter(const char* param) {
-    const char* validParams[] = {
-        "--cpu", "--ram", "--disk", "-disk", // Support both --disk and -disk
-        "--help", "-h", 
-        "--interval", "--debug"
+bool ConfigurationManager::isValidParameter(const std::string& param) const {
+    const std::vector<std::string> validParams = {
+        "--cpu", "--ram", "--disk", "-disk",
+        "--help", "-h", "--interval", "--debug",
+        "--log-size", "--log-backups", "--log-rotation",
+        "--log-strategy", "--log-frequency", "--log-date-format"
     };
-    for (const char* valid : validParams) {
-        if (strcmp(param, valid) == 0) {
-            return true;
-        }
-    }
-    return false;
+    
+    return std::find(validParams.begin(), validParams.end(), param) != validParams.end();
 }
 
-// Print help information
-void PrintUsage() {
-    std::cout << "SystemMonitor - A utility to monitor system resource usage\n\n"
-              << "Usage: SystemMonitor [options]\n\n"
-              << "Options:\n"
-              << "  --cpu PERCENT     CPU threshold percentage (default: 80.0)\n"
-              << "  --ram PERCENT     RAM threshold percentage (default: 80.0)\n"
-              << "  --disk PERCENT    Disk threshold percentage (default: 80.0)\n"
-              << "  --interval MS     Monitoring interval in milliseconds (default: 5000)\n"
-              << "  --debug           Enable debug logging to SystemMonitor_debug.log\n"
-              << "  --help, -h        Display this help message\n";
-}
-
-// Load configuration from a file
-bool LoadConfigFile(MonitorConfig& config) {
-    std::ifstream configFile("SystemMonitor.cfg");
+bool ConfigurationManager::loadFromFile(const std::string& filename) {
+    std::ifstream configFile(filename);
     if (!configFile.is_open()) {
         return false;
     }
@@ -61,92 +88,249 @@ bool LoadConfigFile(MonitorConfig& config) {
         std::string key = line.substr(0, pos);
         std::string value = line.substr(pos + 1);
 
-        // Remove any whitespace
+        // Trim whitespace
         key.erase(0, key.find_first_not_of(" \t"));
         key.erase(key.find_last_not_of(" \t") + 1);
         value.erase(0, value.find_first_not_of(" \t"));
         value.erase(value.find_last_not_of(" \t") + 1);
 
+        // Parse configuration values
         if (key == "CPU_THRESHOLD") {
-            config.cpuThreshold = ValidateThreshold(value.c_str(), "CPU");
+            config.setCpuThreshold(validateThreshold(value, "CPU"));
         } else if (key == "RAM_THRESHOLD") {
-            config.ramThreshold = ValidateThreshold(value.c_str(), "RAM");
+            config.setRamThreshold(validateThreshold(value, "RAM"));
         } else if (key == "DISK_THRESHOLD") {
-            config.diskThreshold = ValidateThreshold(value.c_str(), "Disk");
+            config.setDiskThreshold(validateThreshold(value, "Disk"));
         } else if (key == "MONITOR_INTERVAL") {
             try {
                 int interval = std::stoi(value);
                 if (interval >= 1000) {
-                    config.monitorInterval = interval;
+                    config.setMonitorInterval(interval);
                 }
             } catch (...) {
                 // Ignore parsing errors
             }
         } else if (key == "LOG_PATH") {
-            config.logFilePath = value;
+            config.setLogFilePath(value);
         } else if (key == "DEBUG_MODE") {
-            config.debugMode = (value == "true" || value == "1" || value == "yes");
+            config.setDebugMode(value == "true" || value == "1");
+        } else if (key == "LOG_MAX_SIZE_MB") {
+            try {
+                int size = std::stoi(value);
+                if (size > 0) {
+                    config.getLogConfig().setMaxFileSizeMB(size);
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "LOG_MAX_BACKUPS") {
+            try {
+                int backups = std::stoi(value);
+                if (backups >= 0) {
+                    config.getLogConfig().setMaxBackupFiles(backups);
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "LOG_ROTATION_ENABLED") {
+            config.getLogConfig().setRotationEnabled(value == "true" || value == "1");
+        } else if (key == "LOG_ROTATION_STRATEGY") {
+            if (value == "SIZE_BASED") {
+                config.getLogConfig().setRotationStrategy(LogRotationStrategy::SIZE_BASED);
+            } else if (value == "DATE_BASED") {
+                config.getLogConfig().setRotationStrategy(LogRotationStrategy::DATE_BASED);
+            } else if (value == "COMBINED") {
+                config.getLogConfig().setRotationStrategy(LogRotationStrategy::COMBINED);
+            }
+        } else if (key == "LOG_DATE_FREQUENCY") {
+            if (value == "DAILY") {
+                config.getLogConfig().setDateFrequency(DateRotationFrequency::DAILY);
+            } else if (value == "HOURLY") {
+                config.getLogConfig().setDateFrequency(DateRotationFrequency::HOURLY);
+            } else if (value == "WEEKLY") {
+                config.getLogConfig().setDateFrequency(DateRotationFrequency::WEEKLY);
+            }
+        } else if (key == "LOG_DATE_FORMAT") {
+            config.getLogConfig().setDateFormat(value);
+        } else if (key == "LOG_KEEP_DATE_IN_FILENAME") {
+            config.getLogConfig().setKeepDateInFilename(value == "true" || value == "1");
         }
     }
 
     return true;
 }
 
-// Save configuration to a file
-bool SaveConfigFile(const MonitorConfig& config) {
-    std::ofstream configFile("SystemMonitor.cfg");
+bool ConfigurationManager::saveToFile(const std::string& filename) const {
+    std::ofstream configFile(filename);
     if (!configFile.is_open()) {
         return false;
     }
 
-    configFile << "CPU_THRESHOLD=" << config.cpuThreshold << std::endl;
-    configFile << "RAM_THRESHOLD=" << config.ramThreshold << std::endl;
-    configFile << "DISK_THRESHOLD=" << config.diskThreshold << std::endl;
-    configFile << "MONITOR_INTERVAL=" << config.monitorInterval << std::endl;
-    configFile << "LOG_PATH=" << config.logFilePath << std::endl;
-    configFile << "DEBUG_MODE=" << (config.debugMode ? "true" : "false") << std::endl;
+    configFile << "CPU_THRESHOLD=" << config.getCpuThreshold() << std::endl;
+    configFile << "RAM_THRESHOLD=" << config.getRamThreshold() << std::endl;
+    configFile << "DISK_THRESHOLD=" << config.getDiskThreshold() << std::endl;
+    configFile << "MONITOR_INTERVAL=" << config.getMonitorInterval() << std::endl;
+    configFile << "LOG_PATH=" << config.getLogFilePath() << std::endl;
+    configFile << "DEBUG_MODE=" << (config.isDebugMode() ? "true" : "false") << std::endl;
+    configFile << "LOG_MAX_SIZE_MB=" << config.getLogConfig().getMaxFileSizeMB() << std::endl;
+    configFile << "LOG_MAX_BACKUPS=" << config.getLogConfig().getMaxBackupFiles() << std::endl;
+    configFile << "LOG_ROTATION_ENABLED=" << (config.getLogConfig().isRotationEnabled() ? "true" : "false") << std::endl;
+    
+    // Date-based rotation settings
+    configFile << "LOG_ROTATION_STRATEGY=";
+    switch (config.getLogConfig().getRotationStrategy()) {
+        case LogRotationStrategy::SIZE_BASED:
+            configFile << "SIZE_BASED";
+            break;
+        case LogRotationStrategy::DATE_BASED:
+            configFile << "DATE_BASED";
+            break;
+        case LogRotationStrategy::COMBINED:
+            configFile << "COMBINED";
+            break;
+    }
+    configFile << std::endl;
+    
+    configFile << "LOG_DATE_FREQUENCY=";
+    switch (config.getLogConfig().getDateFrequency()) {
+        case DateRotationFrequency::DAILY:
+            configFile << "DAILY";
+            break;
+        case DateRotationFrequency::HOURLY:
+            configFile << "HOURLY";
+            break;
+        case DateRotationFrequency::WEEKLY:
+            configFile << "WEEKLY";
+            break;
+    }
+    configFile << std::endl;
+    
+    configFile << "LOG_DATE_FORMAT=" << config.getLogConfig().getDateFormat() << std::endl;
+    configFile << "LOG_KEEP_DATE_IN_FILENAME=" << (config.getLogConfig().shouldKeepDateInFilename() ? "true" : "false") << std::endl;
 
     return configFile.good();
 }
 
-// Parse command line parameters for thresholds
-void ParseCommandLineArgs(int argc, char* argv[], MonitorConfig& config) {
+bool ConfigurationManager::parseCommandLine(int argc, char* argv[]) {
     for (int i = 1; i < argc; i++) {
-        // Check if this is a valid parameter
-        if (argv[i][0] == '-') {
-            if (!IsValidParameter(argv[i])) {
-                std::cerr << "Warning: Unknown parameter '" << argv[i] << "'" << std::endl;
+        std::string arg = argv[i];
+        
+        if (arg[0] == '-') {
+            if (!isValidParameter(arg)) {
+                std::cerr << "Warning: Unknown parameter '" << arg << "'" << std::endl;
                 continue;
             }
         }
         
-        // Parse known parameters with their values
         if (i + 1 < argc) {
-            if (strcmp(argv[i], "--cpu") == 0) {
-                config.cpuThreshold = ValidateThreshold(argv[i + 1], "CPU");
-                i++;  // Skip the next argument
-            } else if (strcmp(argv[i], "--ram") == 0) {
-                config.ramThreshold = ValidateThreshold(argv[i + 1], "RAM");
+            std::string value = argv[i + 1];
+            
+            if (arg == "--cpu") {
+                config.setCpuThreshold(validateThreshold(value, "CPU"));
                 i++;
-            } else if (strcmp(argv[i], "--disk") == 0 || strcmp(argv[i], "-disk") == 0) {
-                config.diskThreshold = ValidateThreshold(argv[i + 1], "Disk");
+            } else if (arg == "--ram") {
+                config.setRamThreshold(validateThreshold(value, "RAM"));
                 i++;
-            } else if (strcmp(argv[i], "--interval") == 0) {
+            } else if (arg == "--disk" || arg == "-disk") {
+                config.setDiskThreshold(validateThreshold(value, "Disk"));
+                i++;
+            } else if (arg == "--interval") {
                 try {
-                    int interval = std::stoi(argv[i + 1]);
-                    if (interval < 1000) {
-                        std::cerr << "Warning: Interval too small, setting to minimum 1000ms" << std::endl;
-                        config.monitorInterval = 1000;
-                    } else {
-                        config.monitorInterval = interval;
+                    int interval = std::stoi(value);
+                    if (interval >= 1000) {
+                        config.setMonitorInterval(interval);
                     }
                 } catch (...) {
-                    std::cerr << "Error parsing interval value, using default" << std::endl;
+                    std::cerr << "Invalid interval value: " << value << std::endl;
                 }
                 i++;
+            } else if (arg == "--log-size") {
+                try {
+                    int size = std::stoi(value);
+                    if (size > 0) {
+                        config.getLogConfig().setMaxFileSizeMB(size);
+                    }
+                } catch (...) {
+                    std::cerr << "Invalid log size value: " << value << std::endl;
+                }
+                i++;
+            } else if (arg == "--log-backups") {
+                try {
+                    int backups = std::stoi(value);
+                    if (backups >= 0) {
+                        config.getLogConfig().setMaxBackupFiles(backups);
+                    }
+                } catch (...) {
+                    std::cerr << "Invalid log backups value: " << value << std::endl;
+                }
+                i++;
+            } else if (arg == "--log-strategy") {
+                if (value == "SIZE_BASED") {
+                    config.getLogConfig().setRotationStrategy(LogRotationStrategy::SIZE_BASED);
+                } else if (value == "DATE_BASED") {
+                    config.getLogConfig().setRotationStrategy(LogRotationStrategy::DATE_BASED);
+                } else if (value == "COMBINED") {
+                    config.getLogConfig().setRotationStrategy(LogRotationStrategy::COMBINED);
+                } else {
+                    std::cerr << "Invalid rotation strategy: " << value << std::endl;
+                }
+                i++;
+            } else if (arg == "--log-frequency") {
+                if (value == "DAILY") {
+                    config.getLogConfig().setDateFrequency(DateRotationFrequency::DAILY);
+                } else if (value == "HOURLY") {
+                    config.getLogConfig().setDateFrequency(DateRotationFrequency::HOURLY);
+                } else if (value == "WEEKLY") {
+                    config.getLogConfig().setDateFrequency(DateRotationFrequency::WEEKLY);
+                } else {
+                    std::cerr << "Invalid date frequency: " << value << std::endl;
+                }
+                i++;
+            } else if (arg == "--log-date-format") {
+                config.getLogConfig().setDateFormat(value);
+                i++;
             }
-        } else if (strcmp(argv[i], "--debug") == 0) {
-            config.debugMode = true;
+        } else if (arg == "--debug") {
+            config.setDebugMode(true);
+        } else if (arg == "--log-rotation") {
+            config.getLogConfig().setRotationEnabled(true);
+        } else if (arg == "--help" || arg == "-h") {
+            printUsage();
+            return false; // Indicate that program should exit
         }
     }
+    
+    return true;
+}
+
+void ConfigurationManager::printUsage() const {
+    std::cout << "SystemMonitor - A utility to monitor system resource usage\n\n"
+              << "Usage: SystemMonitor [options]\n\n"
+              << "Options:\n"
+              << "  --cpu PERCENT        CPU threshold percentage (default: 80.0)\n"
+              << "  --ram PERCENT        RAM threshold percentage (default: 80.0)\n"
+              << "  --disk PERCENT       Disk threshold percentage (default: 80.0)\n"
+              << "  --interval MS        Monitoring interval in milliseconds (default: 5000)\n"
+              << "  --debug              Enable debug logging\n"
+              << "  --log-size MB        Maximum log file size in MB (default: 10)\n"
+              << "  --log-backups COUNT  Number of backup files to keep (default: 5)\n"
+              << "  --log-rotation       Enable log rotation (default: enabled)\n"
+              << "\n"
+              << "Advanced Log Rotation Options:\n"
+              << "  --log-strategy TYPE  Rotation strategy: SIZE_BASED, DATE_BASED, COMBINED (default: SIZE_BASED)\n"
+              << "  --log-frequency FREQ Date rotation frequency: DAILY, HOURLY, WEEKLY (default: DAILY)\n"
+              << "  --log-date-format FMT Date format for filenames (default: %Y%m%d)\n"
+              << "  --help, -h           Display this help message\n"
+              << "\n"
+              << "Examples:\n"
+              << "  SystemMonitor --log-strategy DATE_BASED --log-frequency DAILY\n"
+              << "  SystemMonitor --log-strategy COMBINED --log-frequency HOURLY\n";
+}
+
+void ConfigurationManager::resetToDefaults() {
+    config.setDefaults();
+}
+
+bool ConfigurationManager::validateConfiguration() const {
+    return config.validate();
 }

@@ -9,6 +9,8 @@
         "set": "cpp",
         "functional": "cpp",
         "iomanip": "cpp",
-        "atomic": "cpp"
+        "atomic": "cpp",
+        "cerrno": "cpp",
+        "sstream": "cpp"
     }
 }

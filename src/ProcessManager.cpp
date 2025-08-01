@@ -5,12 +5,70 @@
 #include <iostream>
 #include <functional>
 #include <set>
+#include <algorithm>
 
-ProcessManager::ProcessManager(SystemMonitor& monitor) 
-    : systemMonitor(monitor) {
+// WindowsProcessManager implementation
+WindowsProcessManager::WindowsProcessManager(std::shared_ptr<ISystemMonitor> monitor)
+    : systemMonitor(monitor), initialized(false) {
 }
 
-std::map<DWORD, FILETIME> ProcessManager::GetProcessCPUTimes() {
+WindowsProcessManager::~WindowsProcessManager() {
+    shutdown();
+}
+
+bool WindowsProcessManager::initialize() {
+    if (initialized) {
+        return true;
+    }
+
+    try {
+        // Initialize the process manager
+        lastProcessTimes.clear();
+        lastIOBytes.clear();
+        
+        // Capture initial CPU times for baseline
+        lastProcessTimes = captureProcessCpuTimes();
+        
+        initialized = true;
+        return true;
+    }
+    catch (const std::exception& e) {
+        // Use logging if available
+        initialized = false;
+        return false;
+    }
+}
+
+void WindowsProcessManager::shutdown() {
+    if (initialized) {
+        lastProcessTimes.clear();
+        lastIOBytes.clear();
+        initialized = false;
+    }
+}
+
+void WindowsProcessManager::clearCache() {
+    lastProcessTimes.clear();
+    lastIOBytes.clear();
+}
+
+std::string WindowsProcessManager::convertProcessNameToString(const TCHAR* name) const {
+    #ifdef UNICODE
+        // Convert wide string to narrow string
+        int len = WideCharToMultiByte(CP_UTF8, 0, name, -1, NULL, 0, NULL, NULL);
+        if (len > 0) {
+            std::vector<char> buf(len);
+            WideCharToMultiByte(CP_UTF8, 0, name, -1, buf.data(), len, NULL, NULL);
+            return std::string(buf.data());
+        }
+        return "";
+    #else
+        // Already a char array, just return it as a string
+        return std::string(name);
+    #endif
+}
+
+std::map<DWORD, FILETIME> WindowsProcessManager::captureProcessCpuTimes() const {
     std::map<DWORD, FILETIME> processTimes;
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
@@ -27,8 +85,12 @@ std::map<DWORD, FILETIME> ProcessManager::GetProcessCPUTimes() {
                 FILETIME createTime, exitTime, kernelTime, userTime;
                 if (GetProcessTimes(hProcess, &createTime, &exitTime, &kernelTime, &userTime)) {
                     FILETIME totalTime;
-                    totalTime.dwLowDateTime = kernelTime.dwLowDateTime + userTime.dwLowDateTime;
-                    totalTime.dwHighDateTime = kernelTime.dwHighDateTime + userTime.dwHighDateTime;
+                    ULONGLONG kernelULL = ((ULONGLONG)kernelTime.dwHighDateTime << 32) | kernelTime.dwLowDateTime;
+                    ULONGLONG userULL = ((ULONGLONG)userTime.dwHighDateTime << 32) | userTime.dwLowDateTime;
+                    ULONGLONG totalULL = kernelULL + userULL;
+                    
+                    totalTime.dwLowDateTime = (DWORD)(totalULL & 0xFFFFFFFF);
+                    totalTime.dwHighDateTime = (DWORD)(totalULL >> 32);
                     processTimes[pe32.th32ProcessID] = totalTime;
                 }
                 CloseHandle(hProcess);
@@ -40,35 +102,65 @@ std::map<DWORD, FILETIME> ProcessManager::GetProcessCPUTimes() {
     return processTimes;
 }
 
-// Helper to convert process name to string safely
-std::string ProcessManager::GetProcessNameString(const TCHAR* name) {
-    #ifdef UNICODE
-        // Convert wide string to narrow string
-        int len = WideCharToMultiByte(CP_UTF8, 0, name, -1, NULL, 0, NULL, NULL);
-        if (len > 0) {
-            std::vector<char> buf(len);
-            WideCharToMultiByte(CP_UTF8, 0, name, -1, buf.data(), len, NULL, NULL);
-            return std::string(buf.data());
+bool WindowsProcessManager::calculateProcessMetrics(ProcessInfo& processInfo, HANDLE hProcess,
+                                                   const std::map<DWORD, FILETIME>& lastTimes,
+                                                   const std::map<DWORD, FILETIME>& currentTimes,
+                                                   DWORDLONG totalPhysicalMemory) const {
+    try {
+        // Get memory info
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        if (GetProcessMemoryInfo(hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
+            processInfo.setRamPercent(100.0 * (double)pmc.PrivateUsage / (double)totalPhysicalMemory);
         }
-        return "";
-    #else
-        // Already a char array, just return it as a string
-        return std::string(name);
-    #endif
+        
+        // Get CPU info
+        DWORD pid = processInfo.getPid();
+        auto lastIt = lastTimes.find(pid);
+        auto currentIt = currentTimes.find(pid);
+        
+        if (lastIt != lastTimes.end() && currentIt != currentTimes.end()) {
+            FILETIME lastTime = lastIt->second;
+            FILETIME currentTime = currentIt->second;
+            
+            ULONGLONG lastULL = ((ULONGLONG)lastTime.dwHighDateTime << 32) | lastTime.dwLowDateTime;
+            ULONGLONG currentULL = ((ULONGLONG)currentTime.dwHighDateTime << 32) | currentTime.dwLowDateTime;
+            
+            if (currentULL > lastULL) {
+                ULONGLONG processDelta = currentULL - lastULL;
+                double singleCorePercent = (double)processDelta / 100000.0; // Convert to percentage
+                processInfo.setCpuPercent(singleCorePercent);
+            }
+        }
+        
+        // Get I/O info
+        IO_COUNTERS ioCounters;
+        if (GetProcessIoCounters(hProcess, &ioCounters)) {
+            ULONGLONG totalIO = ioCounters.ReadTransferCount + ioCounters.WriteTransferCount;
+            processInfo.setDiskIoBytes(totalIO);
+        }
+        
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
 }
 
-// Enumerate all processes and gather resource usage info
-std::vector<ProcessInfo> ProcessManager::GetAllProcessesInfo() {
-    DebugLog("Entering GetAllProcessesInfo()");
+std::vector<ProcessInfo> WindowsProcessManager::getAllProcesses() {
+    if (!initialized) {
+        if (!initialize()) {
+            return std::vector<ProcessInfo>();
+        }
+    }
+
     std::vector<ProcessInfo> processes;
     
     try {
-        // Get initial CPU usage snapshot
-        static std::map<DWORD, FILETIME> lastProcessTimes = GetProcessCPUTimes();
+        // Wait briefly and capture current CPU times for delta calculation
         Sleep(100); // 100 ms delay for CPU usage calculation
-        std::map<DWORD, FILETIME> currentProcessTimes = GetProcessCPUTimes();
+        std::map<DWORD, FILETIME> currentProcessTimes = captureProcessCpuTimes();
         
-        // Get system metrics
+        // Get system memory info
         MEMORYSTATUSEX memInfo = { sizeof(MEMORYSTATUSEX) };
         GlobalMemoryStatusEx(&memInfo);
         DWORDLONG totalPhysMem = memInfo.ullTotalPhys;
@@ -76,7 +168,6 @@ std::vector<ProcessInfo> ProcessManager::GetAllProcessesInfo() {
         // Take process snapshot
         HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (hProcessSnap == INVALID_HANDLE_VALUE) {
-            DebugLog("Failed to create process snapshot");
             return processes;
         }
 
@@ -85,48 +176,13 @@ std::vector<ProcessInfo> ProcessManager::GetAllProcessesInfo() {
 
         if (Process32First(hProcessSnap, &pe32)) {
             do {
-                ProcessInfo procInfo;
-                procInfo.pid = pe32.th32ProcessID;
-                procInfo.ppid = pe32.th32ParentProcessID;
-                
-                try {
-                    procInfo.name = GetProcessNameString(pe32.szExeFile);
-                } catch (...) {
-                    procInfo.name = "Unknown";
-                }
+                ProcessInfo procInfo(pe32.th32ProcessID, pe32.th32ParentProcessID, 
+                                   convertProcessNameToString(pe32.szExeFile));
                 
                 // Get process details
                 HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
                 if (hProcess != NULL) {
-                    // Get memory info
-                    PROCESS_MEMORY_COUNTERS_EX pmc;
-                    if (GetProcessMemoryInfo(hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
-                        procInfo.ramPercent = 100.0 * (double)pmc.PrivateUsage / (double)totalPhysMem;
-                    }
-                    
-                    // Get CPU info
-                    if (lastProcessTimes.find(pe32.th32ProcessID) != lastProcessTimes.end() &&
-                        currentProcessTimes.find(pe32.th32ProcessID) != currentProcessTimes.end()) {
-                        
-                        FILETIME lastTime = lastProcessTimes[pe32.th32ProcessID];
-                        FILETIME currentTime = currentProcessTimes[pe32.th32ProcessID];
-                        
-                        ULONGLONG lastULL = ((ULONGLONG)lastTime.dwHighDateTime << 32) | lastTime.dwLowDateTime;
-                        ULONGLONG currentULL = ((ULONGLONG)currentTime.dwHighDateTime << 32) | currentTime.dwLowDateTime;
-                        
-                        if (currentULL > lastULL) {
-                            ULONGLONG processDelta = currentULL - lastULL;
-                            double singleCorePercent = (double)processDelta / 10000.0;
-                            procInfo.cpuPercent = singleCorePercent;
-                        }
-                    }
-                    
-                    // Get I/O info
-                    IO_COUNTERS ioCounters;
-                    if (GetProcessIoCounters(hProcess, &ioCounters)) {
-                        procInfo.diskIoBytes = ioCounters.ReadTransferCount + ioCounters.WriteTransferCount;
-                    }
-                    
+                    calculateProcessMetrics(procInfo, hProcess, lastProcessTimes, currentProcessTimes, totalPhysMem);
                     CloseHandle(hProcess);
                 }
                 
@@ -136,69 +192,129 @@ std::vector<ProcessInfo> ProcessManager::GetAllProcessesInfo() {
         }
         
         CloseHandle(hProcessSnap);
+        
+        // Update last times for next iteration
         lastProcessTimes = currentProcessTimes;
         
         return processes;
         
     } catch (const std::exception& e) {
-        DebugLog("Exception in GetAllProcessesInfo: " + std::string(e.what()));
-        throw;
+        return processes;
     } catch (...) {
-        DebugLog("Unknown exception in GetAllProcessesInfo");
-        throw;
+        return processes;
     }
 }
 
-// Aggregate resource usage for parent processes
-std::vector<ProcessInfo> ProcessManager::AggregateProcessTree(const std::vector<ProcessInfo>& processes) {
-    std::map<DWORD, std::vector<ProcessInfo>> processTree;
-    std::set<DWORD> allPids;
+std::vector<ProcessInfo> WindowsProcessManager::getAggregatedProcessTree(const std::vector<ProcessInfo>& processes) {
+    ProcessTreeAggregator aggregator;
+    return aggregator.aggregate(processes);
+}
+
+// ProcessTreeAggregator implementation
+void ProcessTreeAggregator::buildProcessTree(const std::vector<ProcessInfo>& processes) {
+    processTree.clear();
+    allPids.clear();
+    
+    for (const auto& proc : processes) {
+        allPids.insert(proc.getPid());
+        processTree[proc.getPpid()].push_back(proc);
+    }
+}
+
+void ProcessTreeAggregator::aggregateChildren(DWORD parentId, ProcessInfo& parent, int depth) {
+    if (depth > 100) return; // Prevent infinite recursion
+    
+    auto it = processTree.find(parentId);
+    if (it != processTree.end()) {
+        for (const auto& child : it->second) {
+            parent.addResourceUsage(child);
+            aggregateChildren(child.getPid(), parent, depth + 1);
+        }
+    }
+}
+
+std::vector<ProcessInfo> ProcessTreeAggregator::aggregate(const std::vector<ProcessInfo>& processes) {
     std::vector<ProcessInfo> result;
     
     try {
-        // Build process tree
-        for (const auto& proc : processes) {
-            allPids.insert(proc.pid);
-            processTree[proc.ppid].push_back(proc);
-        }
+        buildProcessTree(processes);
         
-        // Process each parent
+        // Process each potential parent
         for (const auto& proc : processes) {
-            // Skip if this is a child process
-            if (proc.ppid != 0 && allPids.find(proc.ppid) != allPids.end()) {
+            // Skip if this is a child process (has parent in our list)
+            if (proc.getPpid() != 0 && allPids.find(proc.getPpid()) != allPids.end()) {
                 continue;
             }
             
             ProcessInfo aggregated = proc;
-            
-            // Recursive lambda to aggregate children
-            std::function<void(DWORD, ProcessInfo&, int)> aggregateChildren = 
-                [&](DWORD parentId, ProcessInfo& parent, int depth) {
-                    if (depth > 100) return;
-                    
-                    if (processTree.find(parentId) != processTree.end()) {
-                        for (const auto& child : processTree[parentId]) {
-                            parent.cpuPercent += child.cpuPercent;
-                            parent.ramPercent += child.ramPercent;
-                            parent.diskIoBytes += child.diskIoBytes;
-                            aggregateChildren(child.pid, parent, depth + 1);
-                        }
-                    }
-                };
-            
-            // Aggregate children's resource usage
-            aggregateChildren(proc.pid, aggregated, 0);
+            aggregateChildren(proc.getPid(), aggregated, 0);
             result.push_back(aggregated);
         }
         
         return result;
     }
-    catch (const std::exception& e) {
-        DebugLog("Exception in AggregateProcessTree: " + std::string(e.what()));
-        return std::vector<ProcessInfo>();
-    }
     catch (...) {
-        DebugLog("Unknown exception in AggregateProcessTree");
         return std::vector<ProcessInfo>();
     }
+}
+
+void ProcessTreeAggregator::reset() {
+    processTree.clear();
+    allPids.clear();
+}
+
+// ProcessFilter implementation
+bool ProcessFilter::hasSignificantUsage(const ProcessInfo& process) {
+    return process.hasSignificantUsage();
+}
+
+bool ProcessFilter::exceedsThreshold(const ProcessInfo& process, double cpuThreshold, 
+                                    double ramThreshold, double diskThreshold) {
+    return process.getCpuPercent() > cpuThreshold ||
+           process.getRamPercent() > ramThreshold ||
+           process.getDiskPercent() > diskThreshold;
+}
+
+bool ProcessFilter::isSystemProcess(const ProcessInfo& process) {
+    const std::string& name = process.getName();
+    return (name == "System" || name == "Registry" || name == "smss.exe" ||
+            name == "csrss.exe" || name == "wininit.exe" || name == "winlogon.exe");
+}
+
+std::vector<ProcessInfo> ProcessFilter::filterByUsage(const std::vector<ProcessInfo>& processes) {
+    std::vector<ProcessInfo> filtered;
+    std::copy_if(processes.begin(), processes.end(), std::back_inserter(filtered),
+                 hasSignificantUsage);
+    return filtered;
+}
+
+std::vector<ProcessInfo> ProcessFilter::filterByThresholds(const std::vector<ProcessInfo>& processes,
+                                                          double cpuThreshold, double ramThreshold, 
+                                                          double diskThreshold) {
+    std::vector<ProcessInfo> filtered;
+    std::copy_if(processes.begin(), processes.end(), std::back_inserter(filtered),
+                 [=](const ProcessInfo& p) { 
+                     return exceedsThreshold(p, cpuThreshold, ramThreshold, diskThreshold); 
+                 });
+    return filtered;
+}
+
+// ProcessManagerFactory implementation
+std::unique_ptr<IProcessManager> ProcessManagerFactory::createWindowsManager(std::shared_ptr<ISystemMonitor> monitor) {
+    return std::make_unique<WindowsProcessManager>(monitor);
+}
+
+std::unique_ptr<IProcessManager> ProcessManagerFactory::createLinuxManager(std::shared_ptr<ISystemMonitor> monitor) {
+    // Stub for future Linux implementation
+    return nullptr;
+}
+
+std::unique_ptr<IProcessManager> ProcessManagerFactory::createCrossPlatformManager(std::shared_ptr<ISystemMonitor> monitor) {
+#ifdef _WIN32
+    return createWindowsManager(monitor);
+#elif __linux__
+    return createLinuxManager(monitor);
+#else
+    return nullptr;
+#endif
 }

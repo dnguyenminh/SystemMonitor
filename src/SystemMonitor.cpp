@@ -4,51 +4,63 @@
 #include <iomanip>
 #include <psapi.h>
 
-SystemMonitor::SystemMonitor() 
-    : isFirstMeasurement(true)
-{
-    lastCpuTimes = GetSystemCpuTimes();
-    currentMetrics = SystemMetrics();
+// WindowsSystemMonitor implementation
+WindowsSystemMonitor::WindowsSystemMonitor() : isFirstMeasurement(true), initialized(false) {}
+
+WindowsSystemMonitor::~WindowsSystemMonitor() {
+    shutdown();
 }
 
-CpuTimes SystemMonitor::GetSystemCpuTimes() {
+bool WindowsSystemMonitor::initialize() {
+    try {
+        lastCpuTimes = getSystemCpuTimes();
+        updateSystemInfo();
+        initialized = true;
+        
+        LoggerManager::getInstance().debug("WindowsSystemMonitor initialized successfully");
+        return true;
+    } catch (const std::exception& e) {
+        LoggerManager::getInstance().debug("Failed to initialize WindowsSystemMonitor: " + std::string(e.what()));
+        return false;
+    }
+}
+
+void WindowsSystemMonitor::shutdown() {
+    initialized = false;
+    LoggerManager::getInstance().debug("WindowsSystemMonitor shutdown completed");
+}
+
+CpuTimes WindowsSystemMonitor::getSystemCpuTimes() const {
     FILETIME idle, kernel, user;
     if (!GetSystemTimes(&idle, &kernel, &user)) {
-        DebugLog("Failed to get system times. Error: " + std::to_string(GetLastError()));
+        LoggerManager::getInstance().debug("Failed to get system times. Error: " + std::to_string(GetLastError()));
         return CpuTimes();
     }
 
-    CpuTimes times;
-    times.idleTime = ((ULONGLONG)idle.dwHighDateTime << 32) | idle.dwLowDateTime;
-    times.kernelTime = ((ULONGLONG)kernel.dwHighDateTime << 32) | kernel.dwLowDateTime;
-    times.userTime = ((ULONGLONG)user.dwHighDateTime << 32) | user.dwLowDateTime;
-    return times;
+    ULONGLONG idleTime = ((ULONGLONG)idle.dwHighDateTime << 32) | idle.dwLowDateTime;
+    ULONGLONG kernelTime = ((ULONGLONG)kernel.dwHighDateTime << 32) | kernel.dwLowDateTime;
+    ULONGLONG userTime = ((ULONGLONG)user.dwHighDateTime << 32) | user.dwLowDateTime;
+    
+    return CpuTimes(idleTime, kernelTime, userTime);
 }
 
-double SystemMonitor::GetDiskUsage() {
+double WindowsSystemMonitor::calculateDiskUsage() const {
     ULARGE_INTEGER available = {0};
     ULARGE_INTEGER total = {0};
     ULARGE_INTEGER totalFree = {0};
 
     if (!GetDiskFreeSpaceExW(L"C:\\", &available, &total, &totalFree)) {
-        DebugLog("Failed to get disk space. Error: " + std::to_string(GetLastError()));
+        LoggerManager::getInstance().debug("Failed to get disk space. Error: " + std::to_string(GetLastError()));
         return 0.0;
     }
 
-    double diskUsagePercent = 100.0 * (total.QuadPart - available.QuadPart) / total.QuadPart;
-    
-    {
-        std::lock_guard<std::mutex> lock(metricsMutex);
-        currentMetrics.diskPercent = diskUsagePercent;
-    }
-    
-    return diskUsagePercent;
+    return 100.0 * (total.QuadPart - available.QuadPart) / total.QuadPart;
 }
 
-void SystemMonitor::UpdateSystemInfo() {
+void WindowsSystemMonitor::updateSystemInfo() {
     MEMORYSTATUSEX mem = { sizeof(mem) };
     if (!GlobalMemoryStatusEx(&mem)) {
-        DebugLog("Failed to get memory status. Error: " + std::to_string(GetLastError()));
+        LoggerManager::getInstance().debug("Failed to get memory status. Error: " + std::to_string(GetLastError()));
         return;
     }
 
@@ -56,59 +68,96 @@ void SystemMonitor::UpdateSystemInfo() {
     GetSystemInfo(&sysInfo);
 
     std::lock_guard<std::mutex> lock(metricsMutex);
-    currentMetrics.numberOfProcessors = sysInfo.dwNumberOfProcessors;
-    currentMetrics.totalPhysicalMemory = mem.ullTotalPhys;
+    currentMetrics.setNumberOfProcessors(sysInfo.dwNumberOfProcessors);
+    currentMetrics.setTotalPhysicalMemory(mem.ullTotalPhys);
 }
 
-SystemUsage SystemMonitor::GetSystemUsage() {
-    SystemUsage usage;
-    
-    // Get CPU usage
-    Sleep(100);  // Small delay for accurate measurement
-    CpuTimes now = GetSystemCpuTimes();
-    
-    ULONGLONG idle = now.idleTime - lastCpuTimes.idleTime;
-    ULONGLONG kernel = now.kernelTime - lastCpuTimes.kernelTime;
-    ULONGLONG user = now.userTime - lastCpuTimes.userTime;
-    ULONGLONG total = kernel + user;
-    
-    usage.cpuPercent = (total > 0) ? 100.0 * (total - idle) / total : 0.0;
-    lastCpuTimes = now;
-
-    // Get RAM usage
-    MEMORYSTATUSEX mem = { sizeof(mem) };
-    if (GlobalMemoryStatusEx(&mem)) {
-        usage.ramPercent = mem.dwMemoryLoad;
-    } else {
-        usage.ramPercent = 0.0;
-        DebugLog("Failed to get memory status. Error: " + std::to_string(GetLastError()));
+SystemUsage WindowsSystemMonitor::getSystemUsage() {
+    if (!initialized) {
+        LoggerManager::getInstance().debug("SystemMonitor not initialized");
+        return SystemUsage();
     }
 
-    // Get disk usage
-    usage.diskPercent = GetDiskUsage();
-    
-    // Update metrics
-    {
-        std::lock_guard<std::mutex> lock(metricsMutex);
-        currentMetrics.cpuPercent = usage.cpuPercent;
-        currentMetrics.ramPercent = usage.ramPercent;
-        currentMetrics.diskPercent = usage.diskPercent;
-        currentMetrics.totalSystemTime = total;
+    try {
+        // Get CPU usage
+        Sleep(100);  // Small delay for accurate measurement
+        CpuTimes now = getSystemCpuTimes();
         
-        if (isFirstMeasurement.exchange(false)) {
-            UpdateSystemInfo();
+        ULONGLONG idle = now.getIdleTime() - lastCpuTimes.getIdleTime();
+        ULONGLONG kernel = now.getKernelTime() - lastCpuTimes.getKernelTime();
+        ULONGLONG user = now.getUserTime() - lastCpuTimes.getUserTime();
+        ULONGLONG total = kernel + user;
+        
+        double cpuPercent = (total > 0) ? 100.0 * (total - idle) / total : 0.0;
+        lastCpuTimes = now;
+
+        // Get RAM usage
+        MEMORYSTATUSEX mem = { sizeof(mem) };
+        double ramPercent = 0.0;
+        if (GlobalMemoryStatusEx(&mem)) {
+            ramPercent = mem.dwMemoryLoad;
+        } else {
+            LoggerManager::getInstance().debug("Failed to get memory status. Error: " + std::to_string(GetLastError()));
         }
+
+        // Get disk usage
+        double diskPercent = calculateDiskUsage();
+        
+        // Update metrics
+        {
+            std::lock_guard<std::mutex> lock(metricsMutex);
+            currentMetrics.setCpuPercent(cpuPercent);
+            currentMetrics.setRamPercent(ramPercent);
+            currentMetrics.setDiskPercent(diskPercent);
+            currentMetrics.setTotalSystemTime(total);
+            
+            if (isFirstMeasurement.exchange(false)) {
+                updateSystemInfo();
+            }
+        }
+        
+        // Log current usage
+        std::cout << "System Usage: CPU: " << std::fixed << std::setprecision(1) << cpuPercent 
+                  << "%, RAM: " << std::fixed << std::setprecision(1) << ramPercent 
+                  << "%, Disk: " << std::fixed << std::setprecision(1) << diskPercent << "%" << std::endl;
+                  
+        return SystemUsage(cpuPercent, ramPercent, diskPercent);
+        
+    } catch (const std::exception& e) {
+        LoggerManager::getInstance().debug("Exception in getSystemUsage: " + std::string(e.what()));
+        return SystemUsage();
     }
-    
-    // Log current usage
-    std::cout << "System Usage: CPU: " << std::fixed << std::setprecision(1) << usage.cpuPercent 
-              << "%, RAM: " << std::fixed << std::setprecision(1) << usage.ramPercent 
-              << "%, Disk: " << std::fixed << std::setprecision(1) << usage.diskPercent << "%" << std::endl;
-              
-    return usage;
 }
 
-SystemMetrics SystemMonitor::GetCurrentMetrics() const {
+SystemMetrics WindowsSystemMonitor::getCurrentMetrics() const {
     std::lock_guard<std::mutex> lock(metricsMutex);
     return currentMetrics;
+}
+
+void WindowsSystemMonitor::reset() {
+    std::lock_guard<std::mutex> lock(metricsMutex);
+    currentMetrics = SystemMetrics();
+    isFirstMeasurement.store(true);
+    lastCpuTimes = getSystemCpuTimes();
+}
+
+// SystemMonitorFactory implementation
+std::unique_ptr<ISystemMonitor> SystemMonitorFactory::createWindowsMonitor() {
+    return std::make_unique<WindowsSystemMonitor>();
+}
+
+std::unique_ptr<ISystemMonitor> SystemMonitorFactory::createLinuxMonitor() {
+    // TODO: Implement Linux monitor
+    return nullptr;
+}
+
+std::unique_ptr<ISystemMonitor> SystemMonitorFactory::createCrossPlatformMonitor() {
+    // TODO: Implement cross-platform monitor
+#ifdef _WIN32
+    return createWindowsMonitor();
+#elif __linux__
+    return createLinuxMonitor();
+#else
+    return nullptr;
+#endif
 }

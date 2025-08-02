@@ -40,12 +40,35 @@ if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include\curl\curl.h" (
     exit /b 1
 )
 
+REM Check if Visual Studio environment is already set up (for CI)
+if defined VCINSTALLDIR (
+    echo Note: Using pre-configured Visual Studio environment
+    echo Environment: %VCINSTALLDIR%
+    goto :compile
+)
+
+REM For local testing, try to find and set up Visual Studio
+echo Setting up local Visual Studio x64 environment...
+if not defined VS_BUILD_TOOLS_PATH (
+    set VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+)
+
+if exist "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" (
+    echo Calling vcvars64.bat from "%VS_BUILD_TOOLS_PATH%"
+    call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo WARNING: Failed to set up Visual Studio environment
+    )
+) else (
+    echo WARNING: Visual Studio environment not found. Assuming CI environment.
+)
+
+:compile
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 echo.
 echo Compiling SystemMonitor with libcurl TLS integration...
-echo Note: Using pre-configured Developer Command Prompt environment
 echo.
 
 REM Compile with libcurl TLS support (STATIC LINKING)

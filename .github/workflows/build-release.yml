@@ -107,8 +107,49 @@ jobs:
         Write-Host "  vcpkg: $env:VCPKG_ROOT"
         Write-Host "  Target: $env:VCPKG_TARGET"
         
-        # Run CI build script (simplified for GitHub Actions)
-        .\build-ci.bat
+    - name: Build SystemMonitor
+      run: |
+        # Set environment variables for build script
+        $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
+        $env:VCPKG_TARGET="x64-windows-static"
+        $env:OUTPUT_DIR="bin"
+        
+        # Find Visual Studio installation using vswhere (more reliable)
+        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $vsWhere) {
+          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($vsPath) {
+            $env:VS_BUILD_TOOLS_PATH = $vsPath
+            Write-Host "✅ Found Visual Studio at: $vsPath"
+          }
+        }
+        
+        # Fallback to manual search if vswhere fails
+        if (-not $env:VS_BUILD_TOOLS_PATH) {
+          $possiblePaths = @(
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
+            "C:\Program Files\Microsoft Visual Studio\2022\Community",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise"
+          )
+          
+          foreach ($path in $possiblePaths) {
+            if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
+              $env:VS_BUILD_TOOLS_PATH = $path
+              Write-Host "✅ Found Visual Studio at: $path (fallback)"
+              break
+            }
+          }
+        }
+        
+        Write-Host "🔨 Building SystemMonitor with:"
+        Write-Host "  VS Path: $env:VS_BUILD_TOOLS_PATH"
+        Write-Host "  vcpkg: $env:VCPKG_ROOT"
+        Write-Host "  Target: $env:VCPKG_TARGET"
+        
+        # Use the original build script
+        .\build.bat
         
         # Verify build succeeded
         if (-not (Test-Path "bin\SystemMonitor.exe")) {
@@ -211,7 +252,7 @@ jobs:
         }
         
         Write-Host "🔨 Building SystemMonitor for Release"
-        .\build-ci.bat
+        .\build.bat
 
     - name: Create Release Package
       run: |

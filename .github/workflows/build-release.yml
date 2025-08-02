@@ -297,10 +297,13 @@ jobs:
         
     - name: Build SystemMonitor for Release
       run: |
-        # Use Developer Command Prompt environment (already set up)
-        $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
-        $env:VCPKG_TARGET="x64-windows-static"
-        $env:OUTPUT_DIR="bin"
+        # Normalize paths for Windows batch file compatibility  
+        $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
+        
+        # Set environment variables for build script
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:VCPKG_TARGET = "x64-windows-static"
+        $env:OUTPUT_DIR = "bin"
         
         # Find Visual Studio installation using vswhere
         $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"

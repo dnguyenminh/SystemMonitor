@@ -94,7 +94,6 @@ if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include\curl\curl.h" (
     echo Please install with: vcpkg install curl[ssl]:%VCPKG_TARGET%
     echo.
     echo Make sure VCPKG_ROOT is set correctly: "%VCPKG_ROOT%"
-    pause
     exit /b 1
 )
 
@@ -102,7 +101,6 @@ REM Check if Visual Studio BuildTools exists
 if not exist "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" (
     echo ERROR: Visual Studio BuildTools not found at "%VS_BUILD_TOOLS_PATH%"
     echo Please set VS_BUILD_TOOLS_PATH to your Visual Studio installation directory
-    pause
     exit /b 1
 )
 
@@ -174,7 +172,6 @@ if %ERRORLEVEL% NEQ 0 (
     echo ❌ Build failed! Check for missing dependencies or compilation errors.
     echo Note: Full SystemMonitor compilation requires all factory implementations.
     echo.
-    pause
     exit /b 1
 )
 
@@ -195,4 +192,4 @@ echo.
 echo To run: ".\%OUTPUT_DIR%\%EXE_NAME%"
 echo Config: config\SystemMonitor.cfg
 echo.
-pause
+REM pause - removed for CI/CD compatibility

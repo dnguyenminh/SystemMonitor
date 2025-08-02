@@ -151,7 +151,7 @@ jobs:
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: SystemMonitor.zip
+        name: SystemMonitor
         path: |
           bin/SystemMonitor.exe
           config/*.cfg

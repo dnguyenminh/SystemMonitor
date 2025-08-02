@@ -52,8 +52,50 @@ jobs:
     - name: Build SystemMonitor
       run: |
         Write-Host "🔨 Building SystemMonitor..."
+        
+        # Detect Visual Studio installation on GitHub Actions runner
+        $vsInstallPath = ""
+        $possiblePaths = @(
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
+          "C:\Program Files\Microsoft Visual Studio\2022\Community",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community"
+        )
+        
+        foreach ($path in $possiblePaths) {
+          if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
+            $vsInstallPath = $path
+            Write-Host "✅ Found Visual Studio at: $path"
+            break
+          }
+        }
+        
+        if (-not $vsInstallPath) {
+          Write-Host "❌ Visual Studio not found in expected locations"
+          Write-Host "Searching for Visual Studio installations..."
+          try {
+            Get-ChildItem "C:\Program Files*" -Directory -ErrorAction SilentlyContinue | 
+              Where-Object { $_.Name -like "*Visual Studio*" } | 
+              ForEach-Object { Write-Host "Found: $($_.FullName)" }
+          } catch {
+            Write-Host "Could not search for Visual Studio installations"
+          }
+          exit 1
+        }
+        
+        # Set environment variables for build
         $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
         $env:VCPKG_TARGET="x64-windows-static"
+        $env:VS_BUILD_TOOLS_PATH="$vsInstallPath"
+        
+        Write-Host "Build Configuration:"
+        Write-Host "  VS Path: $vsInstallPath"
+        Write-Host "  vcpkg: $env:VCPKG_ROOT"
+        Write-Host "  Target: $env:VCPKG_TARGET"
+        
         .\build.bat
 
     - name: Verify build output

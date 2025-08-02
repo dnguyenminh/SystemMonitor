@@ -65,8 +65,43 @@ jobs:
         
     - name: Build SystemMonitor
       run: |
+        # Detect Visual Studio installation on GitHub Actions runner
+        $vsInstallPath = ""
+        $possiblePaths = @(
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
+          "C:\Program Files\Microsoft Visual Studio\2022\Community",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community"
+        )
+        
+        foreach ($path in $possiblePaths) {
+          if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
+            $vsInstallPath = $path
+            Write-Host "✅ Found Visual Studio at: $path"
+            break
+          }
+        }
+        
+        if (-not $vsInstallPath) {
+          Write-Host "❌ Visual Studio not found in expected locations"
+          Write-Host "Available Visual Studio installations:"
+          Get-ChildItem "C:\Program Files*\Microsoft Visual Studio" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*2022*" }
+          exit 1
+        }
+        
+        # Set environment variables for build
         $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
         $env:VCPKG_TARGET="x64-windows-static"
+        $env:VS_BUILD_TOOLS_PATH="$vsInstallPath"
+        
+        Write-Host "🔨 Building SystemMonitor with:"
+        Write-Host "  VS Path: $vsInstallPath"
+        Write-Host "  vcpkg: $env:VCPKG_ROOT"
+        Write-Host "  Target: $env:VCPKG_TARGET"
+        
         .\build.bat
 
     - name: Test executable
@@ -138,8 +173,41 @@ jobs:
         
     - name: Build SystemMonitor for Release
       run: |
+        # Detect Visual Studio installation on GitHub Actions runner
+        $vsInstallPath = ""
+        $possiblePaths = @(
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
+          "C:\Program Files\Microsoft Visual Studio\2022\Community",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community"
+        )
+        
+        foreach ($path in $possiblePaths) {
+          if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
+            $vsInstallPath = $path
+            Write-Host "✅ Found Visual Studio at: $path"
+            break
+          }
+        }
+        
+        if (-not $vsInstallPath) {
+          Write-Host "❌ Visual Studio not found in expected locations"
+          exit 1
+        }
+        
+        # Set environment variables for build
         $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
         $env:VCPKG_TARGET="x64-windows-static"
+        $env:VS_BUILD_TOOLS_PATH="$vsInstallPath"
+        
+        Write-Host "🔨 Building SystemMonitor for Release with:"
+        Write-Host "  VS Path: $vsInstallPath"
+        Write-Host "  vcpkg: $env:VCPKG_ROOT"
+        Write-Host "  Target: $env:VCPKG_TARGET"
+        
         .\build.bat
 
     - name: Create Release Package

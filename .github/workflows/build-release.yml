@@ -139,30 +139,26 @@ jobs:
         
     - name: Build SystemMonitor
       run: |
-        # Normalize paths for Windows batch file compatibility
+        # Normalize vcpkg path for Windows
         $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
         
         Write-Host "🔧 Setting up build environment:"
         Write-Host "  Original VCPKG_ROOT: ${{ env.VCPKG_ROOT }}"
         Write-Host "  Normalized VCPKG_ROOT: $vcpkgRoot"
         
-        # Set environment variables for build script
-        $env:VCPKG_ROOT = $vcpkgRoot
-        $env:VCPKG_TARGET = "x64-windows-static"
-        $env:OUTPUT_DIR = "bin"
-        
-        # Find Visual Studio installation using vswhere (more reliable)
+        # Find Visual Studio installation
         $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $vsPath = ""
+        
         if (Test-Path $vsWhere) {
           $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if ($vsPath) {
-            $env:VS_BUILD_TOOLS_PATH = $vsPath
             Write-Host "✅ Found Visual Studio at: $vsPath"
           }
         }
         
         # Fallback to manual search if vswhere fails
-        if (-not $env:VS_BUILD_TOOLS_PATH) {
+        if (-not $vsPath) {
           $possiblePaths = @(
             "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
             "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
@@ -173,17 +169,12 @@ jobs:
           
           foreach ($path in $possiblePaths) {
             if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
-              $env:VS_BUILD_TOOLS_PATH = $path
+              $vsPath = $path
               Write-Host "✅ Found Visual Studio at: $path (fallback)"
               break
             }
           }
         }
-        
-        Write-Host "🔨 Building SystemMonitor with:"
-        Write-Host "  VS Path: $env:VS_BUILD_TOOLS_PATH"
-        Write-Host "  vcpkg: $env:VCPKG_ROOT"
-        Write-Host "  Target: $env:VCPKG_TARGET"
         
         # Final verification before build
         $curlHeaderPath = "$vcpkgRoot\installed\x64-windows-static\include\curl\curl.h"
@@ -191,21 +182,37 @@ jobs:
           Write-Host "✅ Final verification: libcurl headers found at $curlHeaderPath"
         } else {
           Write-Host "❌ Final verification: libcurl headers missing at $curlHeaderPath"
-          Write-Host "📂 Directory listing:"
-          if (Test-Path "$vcpkgRoot\installed\x64-windows-static\include") {
-            Get-ChildItem "$vcpkgRoot\installed\x64-windows-static\include" | Format-Table Name
-          }
           exit 1
         }
         
-        # Double-check environment variables are set correctly
-        Write-Host "🔍 Environment variables before build:"
-        Write-Host "  VCPKG_ROOT = $env:VCPKG_ROOT"
-        Write-Host "  VCPKG_TARGET = $env:VCPKG_TARGET"
-        Write-Host "  VS_BUILD_TOOLS_PATH = $env:VS_BUILD_TOOLS_PATH"
+        Write-Host "🔨 Building SystemMonitor with:"
+        Write-Host "  VS Path: $vsPath"
+        Write-Host "  vcpkg: $vcpkgRoot"
+        Write-Host "  Target: x64-windows-static"
         
-        # Call build script with explicit environment
-        cmd /c "set VCPKG_ROOT=$env:VCPKG_ROOT && set VCPKG_TARGET=$env:VCPKG_TARGET && set VS_BUILD_TOOLS_PATH=$env:VS_BUILD_TOOLS_PATH && build.bat"
+        # Create a temporary batch file to ensure environment variables are passed correctly
+        $buildScript = @"
+@echo off
+set "VCPKG_ROOT=$vcpkgRoot"
+set "VCPKG_TARGET=x64-windows-static"
+set "OUTPUT_DIR=bin"
+$(if ($vsPath) { "set `"VS_BUILD_TOOLS_PATH=$vsPath`"" })
+echo Environment variables set:
+echo   VCPKG_ROOT=%VCPKG_ROOT%
+echo   VCPKG_TARGET=%VCPKG_TARGET%
+echo   OUTPUT_DIR=%OUTPUT_DIR%
+$(if ($vsPath) { "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%" })
+echo.
+call build.bat
+"@
+        
+        $buildScript | Out-File -FilePath "build-temp.bat" -Encoding ASCII
+        
+        # Execute the temporary build script
+        & .\build-temp.bat
+        
+        # Clean up
+        Remove-Item "build-temp.bat" -ErrorAction SilentlyContinue
         
         # Verify build succeeded
         if (-not (Test-Path "bin\SystemMonitor.exe")) {

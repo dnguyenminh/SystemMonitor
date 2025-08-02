@@ -40,6 +40,13 @@ jobs:
       with:
         arch: x64
 
+    - name: Restore VCPKG_ROOT environment variable
+      run: |
+        # The msvc-dev-cmd action overrides VCPKG_ROOT, so we need to restore it
+        $originalVcpkgRoot = "${{ github.workspace }}\vcpkg"
+        Write-Host "Restoring VCPKG_ROOT to: $originalVcpkgRoot"
+        echo "VCPKG_ROOT=$originalVcpkgRoot" >> $env:GITHUB_ENV
+
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -287,6 +294,13 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
+
+    - name: Restore VCPKG_ROOT environment variable
+      run: |
+        # The msvc-dev-cmd action overrides VCPKG_ROOT, so we need to restore it
+        $originalVcpkgRoot = "${{ github.workspace }}\vcpkg"
+        Write-Host "Restoring VCPKG_ROOT to: $originalVcpkgRoot"
+        echo "VCPKG_ROOT=$originalVcpkgRoot" >> $env:GITHUB_ENV
 
     - name: Cache vcpkg
       uses: actions/cache@v4

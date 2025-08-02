@@ -112,10 +112,15 @@ if defined VCINSTALLDIR (
     echo VCINSTALLDIR: "%VCINSTALLDIR%"
 ) else (
     echo Setting up Visual Studio x64 environment...
+    REM Preserve our VCPKG_ROOT before calling vcvars64 (which may override it)
+    set "ORIGINAL_VCPKG_ROOT=%VCPKG_ROOT%"
     call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
     if %ERRORLEVEL% NEQ 0 (
         echo Warning: Failed to set up Visual Studio environment
     )
+    REM Restore our VCPKG_ROOT (vcvars64 may have overridden it with VS internal vcpkg)
+    set "VCPKG_ROOT=%ORIGINAL_VCPKG_ROOT%"
+    echo Restored VCPKG_ROOT to: "%VCPKG_ROOT%"
 )
 
 REM Create output directory if it doesn't exist
@@ -128,6 +133,7 @@ echo.
 REM Debug: Show compiler environment and paths
 echo Debug: Compiler executable: 
 where cl 2>nul || echo Debug: cl.exe not found in PATH
+echo Debug: Current VCPKG_ROOT after VS setup: "%VCPKG_ROOT%"
 echo Debug: VCPKG paths that will be used in compilation:
 echo Debug: Include flag: /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
 echo Debug: Library path: /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"

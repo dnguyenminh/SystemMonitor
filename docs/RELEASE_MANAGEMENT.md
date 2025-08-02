@@ -1,62 +1,63 @@
-# SystemMonitor Release Management Guide
+# SystemMonitor CI/CD & Release Management Guide
 
-This document describes the complete git flow and release process for SystemMonitor.
+This document describes the complete CI/CD pipeline and release process for SystemMonitor.
 
-## 🚀 Quick Release Commands
+## 🚀 Automated CI/CD Pipeline
 
+### Continuous Integration (Every Commit)
+✅ **Automatic build** on every push to `main` or `develop`
+✅ **Automatic build** on every pull request 
+✅ **Build status badges** in README.md
+✅ **Caching** for faster builds (vcpkg dependencies)
+✅ **Build artifacts** stored for 30 days
+✅ **PR comments** with build status
+
+### Continuous Deployment (Tagged Releases)
+✅ **Automatic release** when you push a git tag `v*`
+✅ **Release package** generation with deployment docs
+✅ **GitHub release** creation with changelogs
+✅ **ZIP archives** ready for distribution
+
+## 🔄 Developer Workflow
+
+### For Regular Development:
 ```bash
-# Complete release workflow
-release.bat prepare v1.0.0    # Build and package release
-release.bat push v1.0.0       # Push to GitHub
+# 1. Make your changes
+git add .
+git commit -m "feat: Add new monitoring feature"
 
-# Individual commands
-release.bat status            # Check git status
-release.bat build            # Build only
-release.bat clean            # Clean artifacts
+# 2. Push to GitHub - CI automatically builds and tests
+git push origin main
+
+# 3. Check build status at: https://github.com/dnguyenminh/SystemMonitor/actions
 ```
 
-## 📋 Release Process
-
-### Step 1: Prepare Release
+### For Releases:
 ```bash
-release.bat prepare v1.0.0
+# 1. Prepare release locally (optional - for testing)
+release.bat prepare v1.1.0
+
+# 2. Create and push tag - GitHub automatically creates release
+git tag v1.1.0
+git push origin v1.1.0
+
+# 3. GitHub Actions will:
+#    - Build the project
+#    - Create release package  
+#    - Publish GitHub release with ZIP
 ```
-This command:
-- ✅ Builds SystemMonitor with static linking
-- ✅ Creates release package in `releases/v1.0.0/`
-- ✅ Generates deployment documentation
-- ✅ Creates ZIP archive for distribution
-- ✅ Commits changes and creates git tag
 
-### Step 2: Push to GitHub
-```bash
-release.bat push v1.0.0
-```
-This command:
-- ✅ Pushes main branch to origin
-- ✅ Pushes version tag to origin
-- ✅ Triggers GitHub Actions workflow (if configured)
+## 📊 Build Status Monitoring
 
-### Step 3: Create GitHub Release
-1. Go to GitHub repository → Releases
-2. Click "Create a new release"
-3. Select tag `v1.0.0`
-4. Upload the generated ZIP file
-5. Use auto-generated release notes or customize
+### Build Badges in README:
+- **CI/CD Status**: Shows if latest build passed/failed
+- **Build Status**: Detailed build information
+- **Latest Release**: Current release version
 
-## 🏗️ GitHub Actions Workflow
-
-The included `.github/workflows/build-release.yml` provides:
-- ✅ Automated building on tag push
-- ✅ Dependency management with vcpkg
-- ✅ Release package creation
-- ✅ Automatic GitHub release creation
-
-### Trigger Workflows:
-```bash
-git tag v1.0.0
-git push origin v1.0.0    # Automatically triggers build
-```
+### Where to Check Build Status:
+1. **GitHub Actions Tab**: https://github.com/dnguyenminh/SystemMonitor/actions
+2. **README Badges**: Green = passing, Red = failing
+3. **PR Comments**: Automatic build summaries on pull requests
 
 ## 📦 Release Package Contents
 

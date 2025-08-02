@@ -1,5 +1,8 @@
 # SystemMonitor
 
+[![Build Status](https://github.com/dnguyenminh/SystemMonitor/workflows/SystemMonitor%20CI%2FCD/badge.svg)](https://github.com/dnguyenminh/SystemMonitor/actions)
+[![Build Status](https://github.com/dnguyenminh/SystemMonitor/workflows/Build%20Status/badge.svg)](https://github.com/dnguyenminh/SystemMonitor/actions)
+[![Release](https://img.shields.io/github/v/release/dnguyenminh/SystemMonitor)](https://github.com/dnguyenminh/SystemMonitor/releases)
 [![C++17](https://img.shields.io/badge/C++-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
 [![Windows](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![TLS](https://img.shields.io/badge/Email-TLS%20Encrypted-green.svg)](https://en.wikipedia.org/wiki/Transport_Layer_Security)

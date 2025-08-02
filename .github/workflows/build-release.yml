@@ -1,42 +1,67 @@
-name: Build and Release SystemMonitor
+name: SystemMonitor CI/CD
 
 on:
+  # Trigger on every push to main branch
+  push:
+    branches: [ main, develop ]
+  
+  # Trigger on pull requests
+  pull_request:
+    branches: [ main ]
+  
+  # Trigger on tags for releases
   push:
     tags:
       - 'v*'
+  
+  # Allow manual triggering
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version (e.g., v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+        required: false
+        default: ''
 
 env:
   BUILD_TYPE: Release
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
 jobs:
+  # Continuous Integration - Build on every commit
   build:
+    name: Build SystemMonitor
     runs-on: windows-latest
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
 
     - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.1
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Cache vcpkg
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.VCPKG_ROOT }}
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+        restore-keys: |
+          ${{ runner.os }}-vcpkg-
 
     - name: Setup vcpkg
       run: |
-        git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
-        ${{ env.VCPKG_ROOT }}\bootstrap-vcpkg.bat
-        ${{ env.VCPKG_ROOT }}\vcpkg integrate install
+        if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
+          git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
+        }
+        cd ${{ env.VCPKG_ROOT }}
+        .\bootstrap-vcpkg.bat
+        .\vcpkg integrate install
 
     - name: Install dependencies
       run: |
-        ${{ env.VCPKG_ROOT }}\vcpkg install curl[ssl]:x64-windows-static
+        cd ${{ env.VCPKG_ROOT }}
+        .\vcpkg install curl[ssl]:x64-windows-static
         
     - name: Build SystemMonitor
       run: |
@@ -44,91 +69,204 @@ jobs:
         $env:VCPKG_TARGET="x64-windows-static"
         .\build.bat
 
+    - name: Test executable
+      run: |
+        if (Test-Path "bin\SystemMonitor.exe") {
+          Write-Host "✅ SystemMonitor.exe built successfully"
+          $size = (Get-Item "bin\SystemMonitor.exe").Length / 1MB
+          Write-Host "📊 Executable size: $([math]::Round($size, 2)) MB"
+        } else {
+          Write-Host "❌ SystemMonitor.exe not found"
+          exit 1
+        }
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: SystemMonitor-${{ github.sha }}
+        path: |
+          bin/SystemMonitor.exe
+          config/SystemMonitor.cfg.template
+          README.md
+        retention-days: 30
+
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-logs-${{ github.sha }}
+        path: |
+          *.log
+          *.err
+        retention-days: 7
+
+  # Release Job - Only runs on tags
+  release:
+    name: Create Release
+    runs-on: windows-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Cache vcpkg
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.VCPKG_ROOT }}
+        key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
+    - name: Setup vcpkg
+      run: |
+        if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
+          git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
+        }
+        cd ${{ env.VCPKG_ROOT }}
+        .\bootstrap-vcpkg.bat
+        .\vcpkg integrate install
+
+    - name: Install dependencies
+      run: |
+        cd ${{ env.VCPKG_ROOT }}
+        .\vcpkg install curl[ssl]:x64-windows-static
+        
+    - name: Build SystemMonitor for Release
+      run: |
+        $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
+        $env:VCPKG_TARGET="x64-windows-static"
+        .\build.bat
+
     - name: Create Release Package
       run: |
-        $version = "${{ github.event.inputs.version }}" 
-        if (-not $version) { $version = $env:GITHUB_REF_NAME }
-        
+        $version = $env:GITHUB_REF_NAME
         $releaseDir = "SystemMonitor-$version"
+        
+        # Create release directory structure
         New-Item -ItemType Directory -Path $releaseDir -Force
         New-Item -ItemType Directory -Path "$releaseDir\config" -Force
         New-Item -ItemType Directory -Path "$releaseDir\docs" -Force
         
         # Copy files
         Copy-Item "bin\SystemMonitor.exe" "$releaseDir\"
-        Copy-Item "config\SystemMonitor.cfg" "$releaseDir\config\SystemMonitor.cfg.template"
+        Copy-Item "config\SystemMonitor.cfg.template" "$releaseDir\config\"
         Copy-Item "README.md" "$releaseDir\"
-        if (Test-Path "docs") { Copy-Item "docs\*" "$releaseDir\docs\" -Recurse }
+        
+        # Copy documentation if exists
+        if (Test-Path "docs") { 
+          Copy-Item "docs\*" "$releaseDir\docs\" -Recurse -ErrorAction SilentlyContinue
+        }
         
         # Create deployment guide
         @"
         # SystemMonitor $version - Deployment Package
         
-        ## Installation
+        ## 🚀 Quick Start
         1. Extract all files to your preferred directory
-        2. Rename ``config\SystemMonitor.cfg.template`` to ``config\SystemMonitor.cfg``
-        3. Configure your email settings in the config file
+        2. Copy ``config\SystemMonitor.cfg.template`` to ``config\SystemMonitor.cfg``
+        3. Edit ``config\SystemMonitor.cfg`` with your email settings
         4. Run: ``SystemMonitor.exe --display silence``
         
-        ## Features
-        - Enterprise system monitoring with TLS email alerts
-        - Static linking - no external dependencies required
-        - Multiple display modes for different use cases
-        - Configurable thresholds and alert timing
+        ## ✨ Features
+        - **Real-time Monitoring**: CPU, RAM, and Disk usage tracking
+        - **TLS Email Alerts**: Secure Gmail SMTP notifications
+        - **Multiple Display Modes**: Line, top, compact, silence
+        - **Static Linking**: No external dependencies required
+        - **Enterprise Ready**: Professional monitoring solution
         
-        ## Requirements
+        ## 📋 Requirements
         - Windows 10/11 or Windows Server 2016+
         - Visual C++ Redistributable 2022 (typically pre-installed)
         
-        ## Support
-        GitHub: https://github.com/dnguyenminh/SystemMonitor
+        ## ⚙️ Configuration
+        Edit ``config\SystemMonitor.cfg``:
+        - Set monitoring thresholds (CPU/RAM/Disk %)
+        - Configure Gmail SMTP with App Password
+        - Customize alert timing and cooldown periods
+        
+        ## 🔗 Support
+        - GitHub: https://github.com/dnguyenminh/SystemMonitor
+        - Documentation: See docs/ folder
+        - Issues: Report via GitHub Issues
+        
+        ## 🏷️ Version Information
+        - Version: $version
+        - Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        - Compiler: MSVC 19.44+ with static libcurl
+        - Dependencies: Statically linked (self-contained)
         "@ | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
         
         # Create ZIP archive
         Compress-Archive -Path "$releaseDir\*" -DestinationPath "SystemMonitor-$version.zip" -Force
         
+        # Set environment variables for next steps
         echo "RELEASE_FILE=SystemMonitor-$version.zip" >> $env:GITHUB_ENV
         echo "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV
+        echo "VERSION=$version" >> $env:GITHUB_ENV
+
+    - name: Generate Release Notes
+      run: |
+        $version = $env:VERSION
+        $releaseNotes = @"
+        ## SystemMonitor $version
+        
+        ### 🎯 What's New
+        - Enterprise-grade system monitoring with TLS email alerts
+        - Static linking for easy deployment (no dependencies)
+        - Multiple display modes for different use cases
+        - Configurable thresholds and smart alerting
+        
+        ### 📦 Deployment
+        - **Self-contained**: No vcpkg or external libraries needed
+        - **Production ready**: Suitable for server monitoring
+        - **Easy setup**: Extract, configure, and run
+        
+        ### 🔧 Features
+        - **Real-time monitoring**: CPU, RAM, Disk usage
+        - **Email notifications**: TLS-encrypted Gmail SMTP
+        - **Silent operation**: Perfect for background monitoring
+        - **Professional logging**: Rotation and debug support
+        
+        ### 📥 Installation
+        1. Download ``SystemMonitor-$version.zip``
+        2. Extract to your target directory
+        3. Configure ``config/SystemMonitor.cfg``
+        4. Run: ``SystemMonitor.exe --display silence``
+        
+        ### �️ Build Information
+        - **Compiled**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        - **Compiler**: Visual Studio 2022 (MSVC 19.44+)
+        - **Dependencies**: libcurl with TLS (statically linked)
+        - **Platform**: Windows x64
+        
+        Built automatically by GitHub Actions from commit $env:GITHUB_SHA
+        "@
+        
+        $releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
+        echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
+        $releaseNotes >> $env:GITHUB_ENV
+        echo "EOF" >> $env:GITHUB_ENV
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ env.RELEASE_FILE }}
+        name: SystemMonitor ${{ env.VERSION }}
+        body: ${{ env.RELEASE_NOTES }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload Release Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: SystemMonitor-Release
+        name: SystemMonitor-Release-${{ env.VERSION }}
         path: ${{ env.RELEASE_FILE }}
-
-    - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ env.RELEASE_FILE }}
-        name: SystemMonitor ${{ env.GITHUB_REF_NAME }}
-        body: |
-          ## SystemMonitor ${{ env.GITHUB_REF_NAME }}
-          
-          ### 🚀 Features
-          - Real-time system monitoring (CPU, RAM, Disk)
-          - TLS-encrypted email alerts via Gmail SMTP
-          - Multiple display modes (line, top, compact, silence)
-          - Static linking for easy deployment
-          - Configurable thresholds and alert timing
-          
-          ### 📦 Deployment
-          - **Self-contained executable** - No external dependencies
-          - **Windows 10/11 compatible** - Server 2016+ supported
-          - **Enterprise ready** - Professional monitoring solution
-          
-          ### 📥 Installation
-          1. Download and extract `SystemMonitor-${{ env.GITHUB_REF_NAME }}.zip`
-          2. Configure `config/SystemMonitor.cfg.template` → `config/SystemMonitor.cfg`
-          3. Run: `SystemMonitor.exe --display silence`
-          
-          ### 🔧 Configuration
-          - Set monitoring thresholds (CPU/RAM/Disk %)
-          - Configure Gmail SMTP with App Password
-          - Customize alert duration and cooldown periods
-          
-          Built with: Visual Studio 2022, vcpkg, libcurl with TLS support
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        retention-days: 90

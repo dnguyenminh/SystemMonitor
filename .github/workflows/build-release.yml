@@ -364,6 +364,7 @@ jobs:
         }
         
         # Create deployment guide
+        $currentDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC'
         $deploymentContent = @'
 # SystemMonitor $version - Deployment Package
 
@@ -397,11 +398,12 @@ Edit config\SystemMonitor.cfg:
 
 ## 🏷️ Version Information
 - Version: $version
-- Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+- Build Date: $currentDate
 - Compiler: MSVC with static libcurl
 - Dependencies: Statically linked (self-contained)
 '@
         
+        $deploymentContent = $deploymentContent.Replace('$version', $version).Replace('$currentDate', $currentDate)
         $deploymentContent | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
         
         # Create ZIP archive
@@ -415,6 +417,7 @@ Edit config\SystemMonitor.cfg:
     - name: Generate Release Notes
       run: |
         $version = $env:VERSION
+        $currentDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC'
         $releaseNotes = @'
 ## SystemMonitor $version
 
@@ -442,7 +445,7 @@ Edit config\SystemMonitor.cfg:
 4. Run: SystemMonitor.exe --display silence
 
 ### 🏗️ Build Information
-- Compiled: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+- Compiled: $currentDate
 - Compiler: Visual Studio 2022 (MSVC)
 - Dependencies: libcurl with TLS (statically linked)
 - Platform: Windows x64
@@ -450,6 +453,7 @@ Edit config\SystemMonitor.cfg:
 Built automatically by GitHub Actions from commit $env:GITHUB_SHA
 '@
         
+        $releaseNotes = $releaseNotes.Replace('$version', $version).Replace('$currentDate', $currentDate)
         $releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
         echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
         $releaseNotes >> $env:GITHUB_ENV

@@ -100,36 +100,22 @@ echo.
 REM Debug: Show compiler environment and paths
 echo Debug: Compiler executable: 
 where cl 2>nul || echo Debug: cl.exe not found in PATH
-echo Debug: Original INCLUDE environment variable:
-echo INCLUDE=%INCLUDE%
-echo Debug: Original LIB environment variable:
-echo LIB=%LIB%
+echo Debug: VCPKG paths that will be used in compilation:
+echo Debug: Include flag: /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
+echo Debug: Library path: /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
 
-REM Add vcpkg paths to environment variables for additional safety
-set VCPKG_INCLUDE_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include
-set VCPKG_LIB_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib
-
-REM Backup original environment variables
-set ORIGINAL_INCLUDE=%INCLUDE%
-set ORIGINAL_LIB=%LIB%
-
-REM Set enhanced environment variables
-if "%INCLUDE%"=="" (
-    set INCLUDE=%VCPKG_INCLUDE_PATH%
-) else (
-    set INCLUDE=%INCLUDE%;%VCPKG_INCLUDE_PATH%
+REM Verify the paths exist before compiling
+if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" (
+    echo ERROR: Include directory missing: "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
+    exit /b 1
 )
 
-if "%LIB%"=="" (
-    set LIB=%VCPKG_LIB_PATH%
-) else (
-    set LIB=%LIB%;%VCPKG_LIB_PATH%
+if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" (
+    echo ERROR: Library directory missing: "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
+    exit /b 1
 )
 
-echo Debug: Updated INCLUDE environment variable:
-echo INCLUDE=%INCLUDE%
-echo Debug: Updated LIB environment variable:
-echo LIB=%LIB%
+echo Debug: ✅ All required directories exist
 echo.
 
 REM Compile with libcurl TLS support (STATIC LINKING)

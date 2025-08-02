@@ -31,3 +31,12 @@ Desktop.ini
 *.idb
 *.lastbuildstate
 *.tlog
+
+# Release artifacts
+releases/
+build/
+*.zip
+
+# Sensitive configuration files
+config/SystemMonitor.cfg
+!config/SystemMonitor.cfg.template

@@ -1,0 +1,33 @@
+# Compiled output
+bin/
+*.exe
+*.obj
+*.pdb
+*.ilk
+
+# Logs
+log/*.log
+log/*.debug
+SystemMonitor_debug.log
+
+# Configuration files and folder (may contain sensitive data)
+config/
+*.cfg
+
+# Visual Studio Code
+.vscode/
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+*.idb
+*.lastbuildstate
+*.tlog

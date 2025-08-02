@@ -6,10 +6,12 @@
 #include <functional>
 #include <set>
 #include <algorithm>
+#include <cmath>
+#include <windows.h>
 
 // WindowsProcessManager implementation
 WindowsProcessManager::WindowsProcessManager(std::shared_ptr<ISystemMonitor> monitor)
-    : systemMonitor(monitor), initialized(false) {
+    : systemMonitor(monitor), initialized(false), systemTimesInitialized(false) {
 }
 
 WindowsProcessManager::~WindowsProcessManager() {
@@ -29,6 +31,11 @@ bool WindowsProcessManager::initialize() {
         // Capture initial CPU times for baseline
         lastProcessTimes = captureProcessCpuTimes();
         
+        // Initialize system times
+        if (GetSystemTimes(&lastSystemIdleTime, &lastSystemKernelTime, &lastSystemUserTime)) {
+            systemTimesInitialized = true;
+        }
+        
         initialized = true;
         return true;
     }
@@ -43,6 +50,7 @@ void WindowsProcessManager::shutdown() {
     if (initialized) {
         lastProcessTimes.clear();
         lastIOBytes.clear();
+        systemTimesInitialized = false;
         initialized = false;
     }
 }
@@ -50,6 +58,7 @@ void WindowsProcessManager::shutdown() {
 void WindowsProcessManager::clearCache() {
     lastProcessTimes.clear();
     lastIOBytes.clear();
+    systemTimesInitialized = false;
 }
 
 std::string WindowsProcessManager::convertProcessNameToString(const TCHAR* name) const {
@@ -105,12 +114,14 @@ std::map<DWORD, FILETIME> WindowsProcessManager::captureProcessCpuTimes() const 
 bool WindowsProcessManager::calculateProcessMetrics(ProcessInfo& processInfo, HANDLE hProcess,
                                                    const std::map<DWORD, FILETIME>& lastTimes,
                                                    const std::map<DWORD, FILETIME>& currentTimes,
-                                                   DWORDLONG totalPhysicalMemory) const {
+                                                   DWORDLONG totalPhysicalMemory) {
     try {
         // Get memory info
         PROCESS_MEMORY_COUNTERS_EX pmc;
         if (GetProcessMemoryInfo(hProcess, (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
-            processInfo.setRamPercent(100.0 * (double)pmc.PrivateUsage / (double)totalPhysicalMemory);
+            // Use WorkingSetSize instead of PrivateUsage for better correlation with system memory usage
+            // WorkingSetSize represents the physical memory currently used by the process
+            processInfo.setRamPercent(100.0 * (double)pmc.WorkingSetSize / (double)totalPhysicalMemory);
         }
         
         // Get CPU info
@@ -127,15 +138,86 @@ bool WindowsProcessManager::calculateProcessMetrics(ProcessInfo& processInfo, HA
             
             if (currentULL > lastULL) {
                 ULONGLONG processDelta = currentULL - lastULL;
-                double singleCorePercent = (double)processDelta / 100000.0; // Convert to percentage
-                processInfo.setCpuPercent(singleCorePercent);
+                
+                // Get current system times and calculate system delta
+                FILETIME currentSystemIdle, currentSystemKernel, currentSystemUser;
+                if (GetSystemTimes(&currentSystemIdle, &currentSystemKernel, &currentSystemUser) && systemTimesInitialized) {
+                    
+                    // Convert system times to ULONGLONG for calculation
+                    ULONGLONG currentSysKernelULL = ((ULONGLONG)currentSystemKernel.dwHighDateTime << 32) | currentSystemKernel.dwLowDateTime;
+                    ULONGLONG currentSysUserULL = ((ULONGLONG)currentSystemUser.dwHighDateTime << 32) | currentSystemUser.dwLowDateTime;
+                    ULONGLONG currentSysIdleULL = ((ULONGLONG)currentSystemIdle.dwHighDateTime << 32) | currentSystemIdle.dwLowDateTime;
+                    
+                    ULONGLONG lastSysKernelULL = ((ULONGLONG)lastSystemKernelTime.dwHighDateTime << 32) | lastSystemKernelTime.dwLowDateTime;
+                    ULONGLONG lastSysUserULL = ((ULONGLONG)lastSystemUserTime.dwHighDateTime << 32) | lastSystemUserTime.dwLowDateTime;
+                    ULONGLONG lastSysIdleULL = ((ULONGLONG)lastSystemIdleTime.dwHighDateTime << 32) | lastSystemIdleTime.dwLowDateTime;
+                    
+                    // Calculate system time deltas
+                    ULONGLONG sysKernelDelta = currentSysKernelULL - lastSysKernelULL;
+                    ULONGLONG sysUserDelta = currentSysUserULL - lastSysUserULL;
+                    ULONGLONG sysIdleDelta = currentSysIdleULL - lastSysIdleULL;
+                    ULONGLONG sysTotalDelta = sysKernelDelta + sysUserDelta;
+                    
+                    if (sysTotalDelta > 0) {
+                        // Calculate process CPU as percentage of actual system time used
+                        double cpuPercent = 100.0 * (double)processDelta / (double)sysTotalDelta;
+                        
+                        // Cap at reasonable maximum
+                        if (cpuPercent > 100.0) cpuPercent = 100.0;
+                        
+                        processInfo.setCpuPercent(cpuPercent);
+                    }
+                } else {
+                    // Fallback calculation using actual time interval
+                    double timeIntervalMs = 1000.0; // Approximate interval between measurements
+                    double timeIntervalIn100ns = timeIntervalMs * 10000.0;
+                    double cpuPercent = 100.0 * (double)processDelta / timeIntervalIn100ns;
+                    
+                    // Normalize by number of cores for consistent display
+                    SYSTEM_INFO sysInfo;
+                    GetSystemInfo(&sysInfo);
+                    int numProcessors = sysInfo.dwNumberOfProcessors;
+                    cpuPercent = cpuPercent / numProcessors;
+                    
+                    if (cpuPercent > 100.0) cpuPercent = 100.0;
+                    processInfo.setCpuPercent(cpuPercent);
+                }
             }
         }
         
-        // Get I/O info
+        // Get I/O info and calculate relative disk activity
         IO_COUNTERS ioCounters;
         if (GetProcessIoCounters(hProcess, &ioCounters)) {
             ULONGLONG totalIO = ioCounters.ReadTransferCount + ioCounters.WriteTransferCount;
+            
+            // Calculate disk I/O activity as a percentage using a more reasonable scale
+            DWORD pid = processInfo.getPid();
+            auto lastIOIt = lastIOBytes.find(pid);
+            
+            if (lastIOIt != lastIOBytes.end()) {
+                ULONGLONG ioDelta = totalIO - lastIOIt->second;
+                
+                // Use the same time interval as system calculation (approximately 1 second)
+                double timeElapsedSec = 1.0; // Approximate time between getAllProcesses() calls
+                
+                // Convert to MB/s and then to percentage relative to a reasonable baseline
+                // Scale to make individual process percentages add up to reasonable system totals
+                double ioMBperSec = (double)ioDelta / (1024.0 * 1024.0 * timeElapsedSec);
+                
+                // Use a much more conservative scaling factor to keep totals reasonable
+                // Target: individual processes should typically be 0.0-5.0% each
+                double diskActivityPercent = (ioMBperSec / 1000.0) * 100.0; // Percentage relative to 1GB/s baseline
+                
+                // Cap at reasonable maximum for individual processes
+                if (diskActivityPercent > 50.0) diskActivityPercent = 50.0;
+                
+                processInfo.setDiskPercent(diskActivityPercent);
+            } else {
+                processInfo.setDiskPercent(0.0);
+            }
+            
+            // Store current I/O bytes for next calculation
+            lastIOBytes[pid] = totalIO;
             processInfo.setDiskIoBytes(totalIO);
         }
         
@@ -195,6 +277,15 @@ std::vector<ProcessInfo> WindowsProcessManager::getAllProcesses() {
         
         // Update last times for next iteration
         lastProcessTimes = currentProcessTimes;
+        
+        // Update system times for next iteration
+        FILETIME currentSystemIdle, currentSystemKernel, currentSystemUser;
+        if (GetSystemTimes(&currentSystemIdle, &currentSystemKernel, &currentSystemUser)) {
+            lastSystemIdleTime = currentSystemIdle;
+            lastSystemKernelTime = currentSystemKernel;
+            lastSystemUserTime = currentSystemUser;
+            systemTimesInitialized = true;
+        }
         
         return processes;
         

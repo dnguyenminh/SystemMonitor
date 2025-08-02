@@ -4,6 +4,7 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <chrono>
 
 // Abstract base class for system monitoring
 class ISystemMonitor {
@@ -22,11 +23,17 @@ private:
     SystemMetrics currentMetrics;
     std::atomic<bool> isFirstMeasurement;
     CpuTimes lastCpuTimes;
-    bool initialized = false;
+    bool initialized;
+    
+    // Disk I/O tracking
+    ULONGLONG lastDiskReadBytes;
+    ULONGLONG lastDiskWriteBytes;
+    std::chrono::steady_clock::time_point lastDiskMeasurement;
+    bool diskMeasurementInitialized;
 
     // Helper methods
     CpuTimes getSystemCpuTimes() const;
-    double calculateDiskUsage() const;
+    double calculateDiskIOActivity();
     void updateSystemInfo();
 
 public:

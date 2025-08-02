@@ -20,6 +20,7 @@ void BaseConfig::setDefaults() {
     diskThreshold = 80.0;
     monitorInterval = 5000;
     debugMode = false;
+    displayMode = DisplayModeConfig::TOP_STYLE;
 }
 
 // MonitorConfig implementation
@@ -68,7 +69,8 @@ bool ConfigurationManager::isValidParameter(const std::string& param) const {
         "--cpu", "--ram", "--disk", "-disk",
         "--help", "-h", "--interval", "--debug",
         "--log-size", "--log-backups", "--log-rotation",
-        "--log-strategy", "--log-frequency", "--log-date-format"
+        "--log-strategy", "--log-frequency", "--log-date-format",
+        "--display", "--mode"
     };
     
     return std::find(validParams.begin(), validParams.end(), param) != validParams.end();
@@ -154,6 +156,14 @@ bool ConfigurationManager::loadFromFile(const std::string& filename) {
             config.getLogConfig().setDateFormat(value);
         } else if (key == "LOG_KEEP_DATE_IN_FILENAME") {
             config.getLogConfig().setKeepDateInFilename(value == "true" || value == "1");
+        } else if (key == "DISPLAY_MODE") {
+            if (value == "LINE_BY_LINE" || value == "0") {
+                config.setDisplayMode(DisplayModeConfig::LINE_BY_LINE);
+            } else if (value == "TOP_STYLE" || value == "1") {
+                config.setDisplayMode(DisplayModeConfig::TOP_STYLE);
+            } else if (value == "COMPACT" || value == "2") {
+                config.setDisplayMode(DisplayModeConfig::COMPACT);
+            }
         }
     }
 
@@ -207,6 +217,21 @@ bool ConfigurationManager::saveToFile(const std::string& filename) const {
     
     configFile << "LOG_DATE_FORMAT=" << config.getLogConfig().getDateFormat() << std::endl;
     configFile << "LOG_KEEP_DATE_IN_FILENAME=" << (config.getLogConfig().shouldKeepDateInFilename() ? "true" : "false") << std::endl;
+    
+    // Display mode setting
+    configFile << "DISPLAY_MODE=";
+    switch (config.getDisplayMode()) {
+        case DisplayModeConfig::LINE_BY_LINE:
+            configFile << "LINE_BY_LINE";
+            break;
+        case DisplayModeConfig::TOP_STYLE:
+            configFile << "TOP_STYLE";
+            break;
+        case DisplayModeConfig::COMPACT:
+            configFile << "COMPACT";
+            break;
+    }
+    configFile << std::endl;
 
     return configFile.good();
 }
@@ -289,6 +314,17 @@ bool ConfigurationManager::parseCommandLine(int argc, char* argv[]) {
             } else if (arg == "--log-date-format") {
                 config.getLogConfig().setDateFormat(value);
                 i++;
+            } else if (arg == "--display" || arg == "--mode") {
+                if (value == "line" || value == "LINE_BY_LINE" || value == "0") {
+                    config.setDisplayMode(DisplayModeConfig::LINE_BY_LINE);
+                } else if (value == "top" || value == "TOP_STYLE" || value == "1") {
+                    config.setDisplayMode(DisplayModeConfig::TOP_STYLE);
+                } else if (value == "compact" || value == "COMPACT" || value == "2") {
+                    config.setDisplayMode(DisplayModeConfig::COMPACT);
+                } else {
+                    std::cerr << "Invalid display mode: " << value << ". Use: line, top, or compact" << std::endl;
+                }
+                i++;
             }
         } else if (arg == "--debug") {
             config.setDebugMode(true);
@@ -311,6 +347,8 @@ void ConfigurationManager::printUsage() const {
               << "  --ram PERCENT        RAM threshold percentage (default: 80.0)\n"
               << "  --disk PERCENT       Disk threshold percentage (default: 80.0)\n"
               << "  --interval MS        Monitoring interval in milliseconds (default: 5000)\n"
+              << "  --display MODE       Display mode: line, top, compact (default: top)\n"
+              << "  --mode MODE          Alias for --display\n"
               << "  --debug              Enable debug logging\n"
               << "  --log-size MB        Maximum log file size in MB (default: 10)\n"
               << "  --log-backups COUNT  Number of backup files to keep (default: 5)\n"
@@ -322,7 +360,14 @@ void ConfigurationManager::printUsage() const {
               << "  --log-date-format FMT Date format for filenames (default: %Y%m%d)\n"
               << "  --help, -h           Display this help message\n"
               << "\n"
+              << "Display Modes:\n"
+              << "  line                 Traditional line-by-line output\n"
+              << "  top                  Interactive table display like Linux top (default)\n"
+              << "  compact              Compact table view\n"
+              << "\n"
               << "Examples:\n"
+              << "  SystemMonitor --display top\n"
+              << "  SystemMonitor --mode line --debug\n"
               << "  SystemMonitor --log-strategy DATE_BASED --log-frequency DAILY\n"
               << "  SystemMonitor --log-strategy COMBINED --log-frequency HOURLY\n";
 }

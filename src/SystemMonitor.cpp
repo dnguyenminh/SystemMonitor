@@ -3,9 +3,18 @@
 #include <iostream>
 #include <iomanip>
 #include <psapi.h>
+#include <winioctl.h>
+#include <chrono>
+#include <tlhelp32.h>
+#include <cmath>
+#include <cstdlib>
+
+// External flag to control console output
+extern bool g_suppressConsoleOutput;
 
 // WindowsSystemMonitor implementation
-WindowsSystemMonitor::WindowsSystemMonitor() : isFirstMeasurement(true), initialized(false) {}
+WindowsSystemMonitor::WindowsSystemMonitor() 
+    : isFirstMeasurement(true), initialized(false), diskMeasurementInitialized(false) {}
 
 WindowsSystemMonitor::~WindowsSystemMonitor() {
     shutdown();
@@ -15,6 +24,13 @@ bool WindowsSystemMonitor::initialize() {
     try {
         lastCpuTimes = getSystemCpuTimes();
         updateSystemInfo();
+        
+        // Initialize disk I/O tracking
+        lastDiskReadBytes = 0;
+        lastDiskWriteBytes = 0;
+        lastDiskMeasurement = std::chrono::steady_clock::now();
+        diskMeasurementInitialized = false; // Will be initialized on first measurement
+        
         initialized = true;
         
         LoggerManager::getInstance().debug("WindowsSystemMonitor initialized successfully");
@@ -27,6 +43,7 @@ bool WindowsSystemMonitor::initialize() {
 
 void WindowsSystemMonitor::shutdown() {
     initialized = false;
+    diskMeasurementInitialized = false;
     LoggerManager::getInstance().debug("WindowsSystemMonitor shutdown completed");
 }
 
@@ -44,17 +61,11 @@ CpuTimes WindowsSystemMonitor::getSystemCpuTimes() const {
     return CpuTimes(idleTime, kernelTime, userTime);
 }
 
-double WindowsSystemMonitor::calculateDiskUsage() const {
-    ULARGE_INTEGER available = {0};
-    ULARGE_INTEGER total = {0};
-    ULARGE_INTEGER totalFree = {0};
-
-    if (!GetDiskFreeSpaceExW(L"C:\\", &available, &total, &totalFree)) {
-        LoggerManager::getInstance().debug("Failed to get disk space. Error: " + std::to_string(GetLastError()));
-        return 0.0;
-    }
-
-    return 100.0 * (total.QuadPart - available.QuadPart) / total.QuadPart;
+double WindowsSystemMonitor::calculateDiskIOActivity() {
+    // This method will be called after process manager calculates individual process I/O
+    // We'll aggregate the process I/O values to get the system total
+    // For now, return 0 and let the system aggregation happen in getSystemUsage()
+    return 0.0;
 }
 
 void WindowsSystemMonitor::updateSystemInfo() {
@@ -95,13 +106,16 @@ SystemUsage WindowsSystemMonitor::getSystemUsage() {
         MEMORYSTATUSEX mem = { sizeof(mem) };
         double ramPercent = 0.0;
         if (GlobalMemoryStatusEx(&mem)) {
-            ramPercent = mem.dwMemoryLoad;
+            // Use actual memory usage calculation instead of dwMemoryLoad for consistency
+            // Calculate: (Total - Available) / Total * 100
+            DWORDLONG usedMemory = mem.ullTotalPhys - mem.ullAvailPhys;
+            ramPercent = 100.0 * (double)usedMemory / (double)mem.ullTotalPhys;
         } else {
             LoggerManager::getInstance().debug("Failed to get memory status. Error: " + std::to_string(GetLastError()));
         }
 
-        // Get disk usage
-        double diskPercent = calculateDiskUsage();
+        // Get disk I/O activity
+        double diskPercent = calculateDiskIOActivity();
         
         // Update metrics
         {
@@ -116,10 +130,12 @@ SystemUsage WindowsSystemMonitor::getSystemUsage() {
             }
         }
         
-        // Log current usage
-        std::cout << "System Usage: CPU: " << std::fixed << std::setprecision(1) << cpuPercent 
-                  << "%, RAM: " << std::fixed << std::setprecision(1) << ramPercent 
-                  << "%, Disk: " << std::fixed << std::setprecision(1) << diskPercent << "%" << std::endl;
+        // Log current usage (only if console output is not suppressed)
+        if (!g_suppressConsoleOutput) {
+            std::cout << "System Usage: CPU: " << std::fixed << std::setprecision(1) << cpuPercent 
+                      << "%, RAM: " << std::fixed << std::setprecision(1) << ramPercent 
+                      << "%, Disk I/O: " << std::fixed << std::setprecision(1) << diskPercent << "%" << std::endl;
+        }
                   
         return SystemUsage(cpuPercent, ramPercent, diskPercent);
         

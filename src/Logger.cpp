@@ -7,6 +7,10 @@
 #include <cerrno>
 #include <filesystem>
 #include <sstream>
+#include <algorithm>
+
+// External flag to control console output
+extern bool g_suppressConsoleOutput;
 
 // LoggerManager singleton implementation
 LoggerManager* LoggerManager::instance = nullptr;
@@ -221,25 +225,65 @@ void AsyncFileLogger::writeProcessMessage(const std::vector<ProcessInfo>& proces
     
     std::string formattedTime = getCurrentTimeString();
     
-    // Write start banner
+    // Calculate process usage totals
+    double totalProcessCpu = 0.0;
+    double totalProcessRam = 0.0;
+    double totalProcessDisk = 0.0;
+    
+    for (const auto& process : processes) {
+        totalProcessCpu += process.getCpuPercent();
+        totalProcessRam += process.getRamPercent();
+        totalProcessDisk += process.getDiskPercent();
+    }
+    
+    // Calculate "unaccounted" usage (system overhead, kernel, cache, etc.)
+    double unaccountedCpu = systemUsage.getCpuPercent() - totalProcessCpu;
+    double unaccountedRam = systemUsage.getRamPercent() - totalProcessRam;
+    double unaccountedDisk = systemUsage.getDiskPercent() - totalProcessDisk;
+    if (unaccountedCpu < 0) unaccountedCpu = 0.0;
+    if (unaccountedRam < 0) unaccountedRam = 0.0;
+    if (unaccountedDisk < 0) unaccountedDisk = 0.0;
+    
+    // Write start banner with analysis
     log << "===Start " << formattedTime 
         << " [System CPU " << std::fixed << std::setprecision(2) << systemUsage.getCpuPercent()
         << "%] [System RAM " << std::fixed << std::setprecision(2) << systemUsage.getRamPercent()
         << "%] [System Disk " << std::fixed << std::setprecision(2) << systemUsage.getDiskPercent() 
         << "%]===\n";
     
+    // Write summary analysis for all resources
+    log << "SYSTEM ANALYSIS: CPU: Processes=" << std::fixed << std::setprecision(2) << totalProcessCpu 
+        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedCpu 
+        << "% = Total=" << std::fixed << std::setprecision(2) << systemUsage.getCpuPercent() << "%\n";
+    log << "SYSTEM ANALYSIS: RAM: Processes=" << std::fixed << std::setprecision(2) << totalProcessRam 
+        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedRam 
+        << "% = Total=" << std::fixed << std::setprecision(2) << systemUsage.getRamPercent() << "%\n";
+    log << "SYSTEM ANALYSIS: DISK: Processes=" << std::fixed << std::setprecision(2) << totalProcessDisk 
+        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedDisk 
+        << "% = Total=" << std::fixed << std::setprecision(2) << systemUsage.getDiskPercent() << "%\n";
+    
     int processCount = 0;
     for (const auto& process : processes) {
-        if (process.hasSignificantUsage()) {
-            log << formattedTime << ", " 
-                << process.getName() << ", " 
-                << process.getPid() 
-                << ", [CPU " << std::fixed << std::setprecision(2) << process.getCpuPercent()
-                << "%] [RAM " << std::fixed << std::setprecision(2) << process.getRamPercent()
-                << "%] [Disk " << std::fixed << std::setprecision(2) << process.getDiskPercent() 
-                << "%]\n";
-            processCount++;
-        }
+        // Log all processes in the filtered list (filtering is done before calling this function)
+        log << formattedTime << ", " 
+            << process.getName() << ", " 
+            << process.getPid() 
+            << ", [CPU " << std::fixed << std::setprecision(2) << process.getCpuPercent()
+            << "%] [RAM " << std::fixed << std::setprecision(2) << process.getRamPercent()
+            << "%] [Disk " << std::fixed << std::setprecision(2) << process.getDiskPercent() 
+            << "%]\n";
+        processCount++;
+    }
+    
+    // Write resource totals for operator analysis
+    log << "TOTALS: [Process CPU " << std::fixed << std::setprecision(2) << totalProcessCpu
+        << "%] [Process RAM " << std::fixed << std::setprecision(2) << totalProcessRam
+        << "%] [Process Disk " << std::fixed << std::setprecision(2) << totalProcessDisk << "%]\n";
+    
+    if (unaccountedRam > 5.0) { // Show significant system overhead
+        log << "SYSTEM OVERHEAD: [CPU " << std::fixed << std::setprecision(2) << unaccountedCpu
+            << "%] [RAM " << std::fixed << std::setprecision(2) << unaccountedRam
+            << "%] [Disk " << std::fixed << std::setprecision(2) << unaccountedDisk << "%] (Kernel/Cache/Buffers)\n";
     }
     
     // Write end banner
@@ -252,8 +296,18 @@ void AsyncFileLogger::writeProcessMessage(const std::vector<ProcessInfo>& proces
     log.flush();
     
     if (processCount > 0) {
-        std::cout << "Logged " << processCount << " processes to " << config.getLogPath() 
-                  << " (Queue size: " << messageQueue.size() << ")" << std::endl;
+        if (!g_suppressConsoleOutput) {
+            std::cout << "System thresholds exceeded - Logged " << processCount 
+                      << " active processes to " << config.getLogPath() 
+                      << " (Processes: " << std::fixed << std::setprecision(1) << totalProcessRam 
+                      << "% + System: " << std::fixed << std::setprecision(1) << unaccountedRam 
+                      << "% = Total: " << std::fixed << std::setprecision(1) << systemUsage.getRamPercent() 
+                      << "% RAM)" << std::endl;
+        }
+    } else {
+        if (!g_suppressConsoleOutput) {
+            std::cout << "System thresholds exceeded but no active processes found" << std::endl;
+        }
     }
 }
 

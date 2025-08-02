@@ -11,6 +11,11 @@
         "iomanip": "cpp",
         "atomic": "cpp",
         "cerrno": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "algorithm": "cpp",
+        "vector": "cpp",
+        "filesystem": "cpp",
+        "cmath": "cpp",
+        "memory": "cpp"
     }
 }

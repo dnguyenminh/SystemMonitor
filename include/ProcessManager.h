@@ -25,6 +25,12 @@ private:
     std::map<DWORD, ULONGLONG> lastIOBytes;
     std::map<DWORD, FILETIME> lastProcessTimes;
     bool initialized = false;
+    
+    // System timing for accurate CPU calculation
+    FILETIME lastSystemIdleTime;
+    FILETIME lastSystemKernelTime;
+    FILETIME lastSystemUserTime;
+    bool systemTimesInitialized = false;
 
     // Helper methods
     std::string convertProcessNameToString(const TCHAR* name) const;
@@ -32,7 +38,7 @@ private:
     bool calculateProcessMetrics(ProcessInfo& processInfo, HANDLE hProcess, 
                                 const std::map<DWORD, FILETIME>& lastTimes,
                                 const std::map<DWORD, FILETIME>& currentTimes,
-                                DWORDLONG totalPhysicalMemory) const;
+                                DWORDLONG totalPhysicalMemory);
 
 public:
     explicit WindowsProcessManager(std::shared_ptr<ISystemMonitor> monitor);

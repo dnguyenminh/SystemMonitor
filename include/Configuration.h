@@ -4,6 +4,13 @@
 #include <memory>
 #include "Logger.h"
 
+// Display mode enumeration
+enum class DisplayModeConfig {
+    LINE_BY_LINE = 0,    // Traditional line output
+    TOP_STYLE = 1,       // Interactive table display like Linux top
+    COMPACT = 2          // Compact table view
+};
+
 // Base configuration class
 class BaseConfig {
 protected:
@@ -12,6 +19,7 @@ protected:
     double diskThreshold = 80.0;
     int monitorInterval = 5000;
     bool debugMode = false;
+    DisplayModeConfig displayMode = DisplayModeConfig::TOP_STYLE; // Default to top-style
 
 public:
     BaseConfig() = default;
@@ -23,6 +31,7 @@ public:
     double getDiskThreshold() const { return diskThreshold; }
     int getMonitorInterval() const { return monitorInterval; }
     bool isDebugMode() const { return debugMode; }
+    DisplayModeConfig getDisplayMode() const { return displayMode; }
 
     // Setters
     void setCpuThreshold(double value) { cpuThreshold = value; }
@@ -30,6 +39,7 @@ public:
     void setDiskThreshold(double value) { diskThreshold = value; }
     void setMonitorInterval(int value) { monitorInterval = value; }
     void setDebugMode(bool value) { debugMode = value; }
+    void setDisplayMode(DisplayModeConfig mode) { displayMode = mode; }
 
     // Virtual methods for extensibility
     virtual bool validate() const;

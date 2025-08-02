@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM SystemMonitor Build Script with libcurl TLS Integration
 REM This script compiles SystemMonitor with secure email capabilities
 
@@ -130,7 +131,19 @@ if defined VCINSTALLDIR (
     REM Restore our VCPKG_ROOT (vcvars64 may have overridden it with VS internal vcpkg)
     set "VCPKG_ROOT=%ORIGINAL_VCPKG_ROOT%"
     echo Restored VCPKG_ROOT to: "%VCPKG_ROOT%"
+    REM After vcvars64.bat, PATH should include x64 tools
 )
+echo Debug: PATH after vcvars64.bat: %PATH%
+echo Debug: LIB after vcvars64.bat: %LIB%
+REM === Force x64 library and binary paths to avoid x86 conflicts ===
+set "VC_X64_LIB=%VS_BUILD_TOOLS_PATH%\VC\Tools\MSVC\14.44.35207\lib\x64"
+set "VC_X64_BIN=%VS_BUILD_TOOLS_PATH%\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64"
+set "WINSDK_LIB=C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\um\x64"
+set "WINSDK_UCRT=C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64"
+set "LIB=%VC_X64_LIB%;%WINSDK_LIB%;%WINSDK_UCRT%;%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
+set "PATH=%VC_X64_BIN%;%PATH%"
+echo Debug: Forced LIB=%LIB%
+echo Debug: Forced PATH=%PATH%
 
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
@@ -140,8 +153,28 @@ echo Compiling SystemMonitor with libcurl TLS integration...
 echo.
 
 REM Debug: Show compiler environment and paths
-echo Debug: Compiler executable: 
-where cl 2>nul || echo Debug: cl.exe not found in PATH
+echo Debug: Compiler executable:
+REM Find x64 cl.exe after vcvars64.bat
+set "CL_PATH="
+for /f "delims=" %%C in ('where cl') do (
+    echo Found cl.exe: %%C
+    echo %%C | findstr /C:"Hostx64\\x64\\cl.exe" >nul
+    if !errorlevel! == 0 (
+        set "CL_PATH=%%C"
+        goto found_cl
+    )
+)
+:found_cl
+if not defined CL_PATH (
+    REM Fallback to hardcoded path if not found
+    if exist "%VS_BUILD_TOOLS_PATH%\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe" (
+        set "CL_PATH=%VS_BUILD_TOOLS_PATH%\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe"
+        echo Fallback: Using hardcoded x64 cl.exe path
+    ) else (
+        echo ERROR: x64 cl.exe not found in PATH or at expected location after vcvars64.bat
+        exit /b 1
+    )
+)
 echo Debug: Current VCPKG_ROOT after VS setup: "%VCPKG_ROOT%"
 echo Debug: VCPKG paths that will be used in compilation:
 echo Debug: Include flag: /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
@@ -162,7 +195,7 @@ echo Debug: ✅ All required directories exist
 echo.
 
 REM Compile with libcurl TLS support (STATIC LINKING)
-cl /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
+"%CL_PATH%" /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    main.cpp ^
    src/SystemMetrics.cpp ^
    src/ProcessManager.cpp ^
@@ -174,9 +207,16 @@ cl /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" ^
    /link /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" ^
    libcurl.lib zlib.lib ^
-   ws2_32.lib wldap32.lib advapi32.lib crypt32.lib normaliz.lib user32.lib kernel32.lib ^
-   iphlpapi.lib secur32.lib ^
-   /OUT:"%OUTPUT_DIR%\%EXE_NAME%"
+   ws2_32.lib ^
+   wldap32.lib ^
+   advapi32.lib ^
+   crypt32.lib ^
+   normaliz.lib ^
+   user32.lib ^
+   kernel32.lib ^
+   iphlpapi.lib ^
+   secur32.lib ^
+   /OUT:"%OUTPUT_DIR%\%EXE_NAME%" /machine:x64
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

@@ -9,9 +9,20 @@ echo ====================================================
 REM =================================================================
 REM Configuration Variables - Modify these paths for your environment
 REM =================================================================
-REM Visual Studio BuildTools installation path
+REM Visual Studio installation path - try multiple common locations
 if not defined VS_BUILD_TOOLS_PATH (
-    set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+    REM Try Enterprise first (GitHub Actions)
+    if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
+        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+    ) else if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" (
+        set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+    ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
+        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional"
+    ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
+        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community"
+    ) else (
+        set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+    )
 )
 
 REM vcpkg installation path - normalize forward slashes to backslashes for Windows

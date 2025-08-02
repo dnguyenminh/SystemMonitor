@@ -481,10 +481,26 @@ void SystemMonitorApplication::printStartupInfo() const {
     const auto& logConfig = config.getLogConfig();
     std::cout << "Log rotation: " << (logConfig.isRotationEnabled() ? "Enabled" : "Disabled");
     if (logConfig.isRotationEnabled()) {
-        std::cout << " (Max size: " << logConfig.getMaxFileSizeMB() << "MB, Backups: " 
-                  << logConfig.getMaxBackupFiles() << ")";
+        std::string strategyStr = "UNKNOWN";
+        switch (logConfig.getRotationStrategy()) {
+            case LogRotationStrategy::SIZE_BASED: strategyStr = "SIZE_BASED"; break;
+            case LogRotationStrategy::DATE_BASED: strategyStr = "DATE_BASED"; break;
+            case LogRotationStrategy::COMBINED: strategyStr = "COMBINED"; break;
+        }
+        std::cout << " (Strategy: " << strategyStr;
+        if (logConfig.isSizeBasedRotation()) {
+            std::cout << ", Max size: " << logConfig.getMaxFileSizeMB() << "MB";
+        }
+        std::cout << ", Backups: " << logConfig.getMaxBackupFiles() << ")";
     }
     std::cout << std::endl;
+    // Print log date frequency
+    std::string dateFreqStr = "UNKNOWN";
+    switch (logConfig.getDateFrequency()) {
+        case DateRotationFrequency::DAILY: dateFreqStr = "DAILY"; break;
+        // Add more cases here if more enum values are added in the future
+    }
+    std::cout << "Log date frequency: " << dateFreqStr << std::endl;
     
     // Email configuration info
     const auto& emailConfig = config.getEmailConfig();

@@ -259,12 +259,13 @@ jobs:
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SystemMonitor.exe
+        name: SystemMonitor.zip
         path: |
           bin/SystemMonitor.exe
-          config/*.template
-          config/*.sample
-          README.md
+          config/*.cfg
+          config/*.cfg.sample
+          config/*.cfg.template
+          README.md.cfg
         retention-days: 30
 
     - name: Upload build logs on failure

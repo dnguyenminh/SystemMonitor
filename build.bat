@@ -78,14 +78,50 @@ if not exist "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" (
     exit /b 1
 )
 
-echo Setting up Visual Studio x64 environment...
-call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+REM Check if Visual Studio environment is already configured (for CI/CD)
+if defined VCINSTALLDIR (
+    echo Visual Studio x64 environment already configured
+    echo VCINSTALLDIR: %VCINSTALLDIR%
+) else (
+    echo Setting up Visual Studio x64 environment...
+    call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+)
 
 REM Create output directory if it doesn't exist
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 echo.
 echo Compiling SystemMonitor with libcurl TLS integration...
+echo.
+
+REM Debug: Show compiler environment and paths
+echo Debug: Compiler executable: 
+where cl 2>nul || echo Debug: cl.exe not found in PATH
+echo Debug: Original INCLUDE environment variable:
+echo INCLUDE=%INCLUDE%
+echo Debug: Original LIB environment variable:
+echo LIB=%LIB%
+
+REM Add vcpkg paths to environment variables for additional safety
+set "VCPKG_INCLUDE_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
+set "VCPKG_LIB_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
+
+if defined INCLUDE (
+    set "INCLUDE=%INCLUDE%;%VCPKG_INCLUDE_PATH%"
+) else (
+    set "INCLUDE=%VCPKG_INCLUDE_PATH%"
+)
+
+if defined LIB (
+    set "LIB=%LIB%;%VCPKG_LIB_PATH%"
+) else (
+    set "LIB=%VCPKG_LIB_PATH%"
+)
+
+echo Debug: Updated INCLUDE environment variable:
+echo INCLUDE=%INCLUDE%
+echo Debug: Updated LIB environment variable:
+echo LIB=%LIB%
 echo.
 
 REM Compile with libcurl TLS support (STATIC LINKING)

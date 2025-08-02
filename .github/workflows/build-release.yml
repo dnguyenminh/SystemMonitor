@@ -139,8 +139,6 @@ jobs:
         
     - name: Build SystemMonitor
       run: |
-    - name: Build SystemMonitor
-      run: |
         # Normalize paths for Windows batch file compatibility
         $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
         

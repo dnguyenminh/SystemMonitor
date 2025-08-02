@@ -85,6 +85,9 @@ if defined VCINSTALLDIR (
 ) else (
     echo Setting up Visual Studio x64 environment...
     call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo Warning: Failed to set up Visual Studio environment
+    )
 )
 
 REM Create output directory if it doesn't exist
@@ -103,19 +106,24 @@ echo Debug: Original LIB environment variable:
 echo LIB=%LIB%
 
 REM Add vcpkg paths to environment variables for additional safety
-set "VCPKG_INCLUDE_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
-set "VCPKG_LIB_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
+set VCPKG_INCLUDE_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include
+set VCPKG_LIB_PATH=%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib
 
-if defined INCLUDE (
-    set "INCLUDE=%INCLUDE%;%VCPKG_INCLUDE_PATH%"
+REM Backup original environment variables
+set ORIGINAL_INCLUDE=%INCLUDE%
+set ORIGINAL_LIB=%LIB%
+
+REM Set enhanced environment variables
+if "%INCLUDE%"=="" (
+    set INCLUDE=%VCPKG_INCLUDE_PATH%
 ) else (
-    set "INCLUDE=%VCPKG_INCLUDE_PATH%"
+    set INCLUDE=%INCLUDE%;%VCPKG_INCLUDE_PATH%
 )
 
-if defined LIB (
-    set "LIB=%LIB%;%VCPKG_LIB_PATH%"
+if "%LIB%"=="" (
+    set LIB=%VCPKG_LIB_PATH%
 ) else (
-    set "LIB=%VCPKG_LIB_PATH%"
+    set LIB=%LIB%;%VCPKG_LIB_PATH%
 )
 
 echo Debug: Updated INCLUDE environment variable:

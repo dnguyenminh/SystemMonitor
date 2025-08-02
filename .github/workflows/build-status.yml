@@ -151,11 +151,14 @@ jobs:
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: SystemMonitor.exe
+        name: SystemMonitor.zip
         path: |
           bin/SystemMonitor.exe
-          config/*.template
-        retention-days: 7
+          config/*.cfg
+          config/*.cfg.sample
+          config/*.cfg.template
+          README.md.cfg
+        retention-days: 30
 
     - name: Build summary
       run: |

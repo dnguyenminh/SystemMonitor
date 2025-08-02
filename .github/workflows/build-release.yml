@@ -259,7 +259,7 @@ jobs:
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SystemMonitor-${{ github.sha }}
+        name: SystemMonitor.exe
         path: |
           bin/SystemMonitor.exe
           config/*.template
@@ -497,6 +497,6 @@ Built automatically by GitHub Actions from commit $env:GITHUB_SHA
     - name: Upload Release Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SystemMonitor-Release-${{ env.VERSION }}
+        name: SystemMonitor-Release.zip
         path: ${{ env.RELEASE_FILE }}
         retention-days: 90

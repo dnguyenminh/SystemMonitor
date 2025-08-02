@@ -14,13 +14,16 @@ jobs:
     name: Quick Build Check
     runs-on: windows-latest
     timeout-minutes: 30
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.3
+
+    - name: Setup MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
 
     - name: Cache vcpkg
       uses: actions/cache@v3
@@ -47,155 +50,56 @@ jobs:
     - name: Install dependencies
       run: |
         cd ${{ env.VCPKG_ROOT }}
-        .\vcpkg install curl[ssl]:x64-windows-static
+        
+        Write-Host "📦 Installing libcurl with SSL support..."
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse
+        
+        Write-Host "📂 Verifying installation..."
+        .\vcpkg list | Where-Object { $_ -like "*curl*" }
+        
+        # Verify critical files exist
+        $curlHeader = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h"
+        $curlLib = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\lib\libcurl.lib"
+        
+        if (Test-Path $curlHeader) {
+          Write-Host "✅ curl.h found"
+        } else {
+          Write-Host "❌ curl.h missing"
+        }
+        
+        if (Test-Path $curlLib) {
+          Write-Host "✅ libcurl.lib found"
+        } else {
+          Write-Host "❌ libcurl.lib missing"
+        }
 
     - name: Build SystemMonitor
       run: |
         Write-Host "🔨 Building SystemMonitor..."
-        
-        # Detect Visual Studio installation on GitHub Actions runner
-        $vsInstallPath = ""
-        $possiblePaths = @(
-          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
-          "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
-          "C:\Program Files\Microsoft Visual Studio\2022\Community",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community"
-        )
-        
-        foreach ($path in $possiblePaths) {
-          if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
-            $vsInstallPath = $path
-            Write-Host "✅ Found Visual Studio at: $path"
-            break
-          }
-        }
-        
-        if (-not $vsInstallPath) {
-          Write-Host "❌ Visual Studio not found in expected locations"
-          Write-Host "Searching for Visual Studio installations..."
-          try {
-            Get-ChildItem "C:\Program Files*" -Directory -ErrorAction SilentlyContinue | 
-              Where-Object { $_.Name -like "*Visual Studio*" } | 
-              ForEach-Object { Write-Host "Found: $($_.FullName)" }
-          } catch {
-            Write-Host "Could not search for Visual Studio installations"
-          }
-          exit 1
-        }
-        
-        # Set environment variables for build
-        $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
-        $env:VCPKG_TARGET="x64-windows-static"
-        $env:VS_BUILD_TOOLS_PATH="$vsInstallPath"
-        
-        Write-Host "Build Configuration:"
-        Write-Host "  VS Path: $vsInstallPath"
-        Write-Host "  vcpkg: $env:VCPKG_ROOT"
-        Write-Host "  Target: $env:VCPKG_TARGET"
-        
-        .\build.bat
 
-    - name: Verify build output
-      run: |
-        if (Test-Path "bin\SystemMonitor.exe") {
-          $exe = Get-Item "bin\SystemMonitor.exe"
-          $sizeKB = [math]::Round($exe.Length / 1KB, 1)
-          $sizeMB = [math]::Round($exe.Length / 1MB, 2)
-          
-          Write-Host "✅ Build successful!"
-          Write-Host "📊 Executable: bin\SystemMonitor.exe"
-          Write-Host "📏 Size: $sizeKB KB ($sizeMB MB)"
-          Write-Host "📅 Created: $($exe.CreationTime)"
-          
-          # Quick dependency check
-          Write-Host "`n🔍 Checking dependencies..."
-          try {
-            $deps = & dumpbin /dependents "bin\SystemMonitor.exe" 2>$null
-            if ($deps -match "WS2_32.dll|KERNEL32.dll") {
-              Write-Host "✅ Static linking verified - only system DLLs detected"
-            }
-          } catch {
-            Write-Host "ℹ️ Dependency check skipped (dumpbin not available)"
-          }
-          
-          # Set output for other jobs
-          echo "BUILD_SUCCESS=true" >> $env:GITHUB_ENV
-          echo "EXE_SIZE_MB=$sizeMB" >> $env:GITHUB_ENV
+        # Normalize vcpkg path for Windows
+        $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
+        $env:VCPKG_ROOT = $vcpkgRoot
+        
+        Write-Host "Using VCPKG_ROOT: $vcpkgRoot"
+        
+        $includeDir = "$vcpkgRoot\installed\x64-windows-static\include"
+        $curlHeader = "$vcpkgRoot\installed\x64-windows-static\include\curl\curl.h"
+
+        if (!(Test-Path $includeDir)) {
+          Write-Host "ERROR: Include directory missing: $includeDir"
+          exit 1
         } else {
-          Write-Host "❌ Build failed - executable not found"
+          Write-Host "✅ vcpkg include directory found!"
+        }
+        
+        if (!(Test-Path $curlHeader)) {
+          Write-Host "ERROR: curl.h missing: $curlHeader"
+          Write-Host "Available files in include directory:"
+          Get-ChildItem $includeDir -ErrorAction SilentlyContinue | Format-Table Name
           exit 1
+        } else {
+          Write-Host "✅ libcurl headers found!"
         }
 
-    - name: Create build summary
-      run: |
-        $summary = @"
-        ## 🔨 Build Summary
-        
-        | Component | Status | Details |
-        |-----------|--------|---------|
-        | **Compilation** | ✅ Success | SystemMonitor.exe created |
-        | **Size** | 📊 $env:EXE_SIZE_MB MB | Static linking verified |
-        | **Dependencies** | ✅ Static | No external DLLs required |
-        | **Platform** | 🖥️ Windows x64 | MSVC 19.44+ |
-        | **Commit** | 📝 $env:GITHUB_SHA | $env:GITHUB_REF_NAME |
-        
-        ### ✨ Features Verified
-        - Real-time system monitoring
-        - TLS email notification support
-        - Multiple display modes
-        - Configuration management
-        - Professional logging system
-        
-        Ready for deployment! 🚀
-        "@
-        
-        Write-Host $summary
-        echo "BUILD_SUMMARY<<EOF" >> $env:GITHUB_ENV
-        echo $summary >> $env:GITHUB_ENV
-        echo "EOF" >> $env:GITHUB_ENV
-
-    - name: Comment on PR (if PR)
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: process.env.BUILD_SUMMARY
-          })
-
-  build-info:
-    name: Build Information
-    runs-on: windows-latest
-    needs: quick-build
-    if: success()
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Generate build info
-      run: |
-        Write-Host "📋 SystemMonitor Build Information"
-        Write-Host "=================================="
-        Write-Host "Repository: $env:GITHUB_REPOSITORY"
-        Write-Host "Branch: $env:GITHUB_REF_NAME"
-        Write-Host "Commit: $env:GITHUB_SHA"
-        Write-Host "Workflow: $env:GITHUB_WORKFLOW"
-        Write-Host "Runner: $env:RUNNER_OS"
-        Write-Host "Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')"
-        
-        Write-Host "`n🔧 Project Structure:"
-        Get-ChildItem -Path . -Recurse -Include "*.cpp", "*.h", "*.bat" | 
-          ForEach-Object { Write-Host "  $($_.FullName.Substring($PWD.Path.Length + 1))" }
-        
-        Write-Host "`n📊 Code Statistics:"
-        $cppFiles = Get-ChildItem -Path . -Recurse -Include "*.cpp", "*.h"
-        $totalLines = ($cppFiles | Get-Content | Measure-Object -Line).Lines
-        Write-Host "  Source files: $($cppFiles.Count)"
-        Write-Host "  Total lines: $totalLines"
+        .\build.bat

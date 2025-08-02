@@ -155,9 +155,12 @@ bool SystemMonitorApplication::initialize(int argc, char* argv[]) {
         std::cout << "Warning: Running without administrator privileges. Some processes may not be accessible." << std::endl;
     }
     
-    // Save current configuration
-    if (configManager->saveToFile("config\\SystemMonitor.cfg")) {
-        std::cout << "Saved configuration to config\\SystemMonitor.cfg" << std::endl;
+    // Save current configuration only if config file does not exist
+    DWORD attrib = GetFileAttributesA("config\\SystemMonitor.cfg");
+    if (attrib == INVALID_FILE_ATTRIBUTES) {
+        if (configManager->saveToFile("config\\SystemMonitor.cfg")) {
+            std::cout << "Saved configuration to config\\SystemMonitor.cfg" << std::endl;
+        }
     }
     
     isRunning = true;

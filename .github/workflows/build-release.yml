@@ -254,7 +254,8 @@ jobs:
         name: SystemMonitor-${{ github.sha }}
         path: |
           bin/SystemMonitor.exe
-          config/SystemMonitor.cfg.template
+          config/*.template
+          config/*.sample
           README.md
         retention-days: 30
 
@@ -352,7 +353,16 @@ jobs:
         
         # Copy files
         Copy-Item "bin\SystemMonitor.exe" "$releaseDir\"
-        Copy-Item "config\SystemMonitor.cfg.template" "$releaseDir\config\"
+        # Copy configuration templates
+        if (Test-Path "config\SystemMonitor.cfg.template") {
+          Copy-Item "config\SystemMonitor.cfg.template" "$releaseDir\config\"
+        }
+        if (Test-Path "config\SystemMonitor.cfg.sample") {
+          Copy-Item "config\SystemMonitor.cfg.sample" "$releaseDir\config\"
+        }
+        if (Test-Path "config\SystemMonitor.cfg.email-sample") {
+          Copy-Item "config\SystemMonitor.cfg.email-sample" "$releaseDir\config\"
+        }
         Copy-Item "README.md" "$releaseDir\"
         
         # Copy documentation if exists

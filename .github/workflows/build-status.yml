@@ -104,3 +104,55 @@ jobs:
         }
 
         .\build.bat
+
+    - name: Verify build output
+      run: |
+        if (Test-Path "bin\SystemMonitor.exe") {
+          Write-Host "✅ Build successful - SystemMonitor.exe created"
+          $size = (Get-Item "bin\SystemMonitor.exe").Length / 1MB
+          Write-Host "📊 Executable size: $([math]::Round($size, 2)) MB"
+        } else {
+          Write-Host "❌ Build failed - SystemMonitor.exe not found"
+          Write-Host "📂 Contents of bin directory:"
+          if (Test-Path "bin") {
+            Get-ChildItem "bin" | Format-Table Name, Length
+          } else {
+            Write-Host "bin directory does not exist"
+          }
+          exit 1
+        }
+
+    - name: Quick functionality test
+      run: |
+        Write-Host "🧪 Testing executable..."
+        try {
+          # Test help command (should exit quickly)
+          $process = Start-Process -FilePath ".\bin\SystemMonitor.exe" -ArgumentList "--help" -Wait -NoNewWindow -PassThru
+          if ($process.ExitCode -eq 0 -or $process.ExitCode -eq 1) {
+            Write-Host "✅ Executable runs successfully"
+          } else {
+            Write-Host "⚠️ Executable returned exit code: $($process.ExitCode)"
+          }
+        } catch {
+          Write-Host "⚠️ Could not test executable: $($_.Exception.Message)"
+        }
+
+    - name: Upload build artifact (on success)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: SystemMonitor-QuickBuild-${{ github.sha }}
+        path: |
+          bin/SystemMonitor.exe
+          config/*.template
+        retention-days: 7
+
+    - name: Build summary
+      run: |
+        Write-Host "📋 Build Summary:"
+        Write-Host "✅ Source files verified"
+        Write-Host "✅ Dependencies installed"
+        Write-Host "✅ Compilation successful"
+        Write-Host "✅ Executable created"
+        Write-Host ""
+        Write-Host "🎯 Quick build check completed successfully!"

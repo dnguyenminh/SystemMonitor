@@ -53,10 +53,13 @@ jobs:
         Set-Location "${{ env.VCPKG_ROOT }}"
         
         Write-Host "📦 Installing libcurl with SSL support..."
-        .\vcpkg install curl[ssl]:x64-windows-static --recurse
+        Write-Host "Using vcpkg at: ${{ env.VCPKG_ROOT }}"
+        
+        # Enable classic mode for vcpkg
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse --x-classic-mode
         
         Write-Host "📂 Verifying installation..."
-        .\vcpkg list | Where-Object { $_ -like "*curl*" }
+        .\vcpkg list --x-classic-mode | Where-Object { $_ -like "*curl*" }
         
         # Verify critical files exist
         $curlHeader = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h"

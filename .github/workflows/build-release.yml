@@ -80,7 +80,7 @@ jobs:
         # Ensure we're using the correct triplet
         Write-Host "📦 Installing libcurl with SSL support..."
         Write-Host "Using vcpkg at: ${{ env.VCPKG_ROOT }}"
-        .\vcpkg install curl[ssl]:x64-windows-static --recurse --x-classic-mode
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse --classic
         
         # Debug installation
         Write-Host "📂 Checking vcpkg directory structure..."
@@ -133,7 +133,7 @@ jobs:
         }
         
         Write-Host "📂 Installed packages:"
-        .\vcpkg list --x-classic-mode
+        .\vcpkg list --classic
         
     - name: Build SystemMonitor
       run: |
@@ -310,7 +310,7 @@ jobs:
         # Install libcurl with SSL support for release
         Write-Host "📦 Installing libcurl with SSL support for release..."
         Write-Host "Using vcpkg at: ${{ env.VCPKG_ROOT }}"
-        .\vcpkg install curl[ssl]:x64-windows-static --recurse --x-classic-mode
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse --classic
         
         # Verify installation
         if (Test-Path "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h") {

@@ -198,8 +198,14 @@ jobs:
           exit 1
         }
         
-        # Use the original build script
-        .\build.bat
+        # Double-check environment variables are set correctly
+        Write-Host "🔍 Environment variables before build:"
+        Write-Host "  VCPKG_ROOT = $env:VCPKG_ROOT"
+        Write-Host "  VCPKG_TARGET = $env:VCPKG_TARGET"
+        Write-Host "  VS_BUILD_TOOLS_PATH = $env:VS_BUILD_TOOLS_PATH"
+        
+        # Call build script with explicit environment
+        cmd /c "set VCPKG_ROOT=$env:VCPKG_ROOT && set VCPKG_TARGET=$env:VCPKG_TARGET && set VS_BUILD_TOOLS_PATH=$env:VS_BUILD_TOOLS_PATH && build.bat"
         
         # Verify build succeeded
         if (-not (Test-Path "bin\SystemMonitor.exe")) {

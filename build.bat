@@ -16,10 +16,21 @@ if not defined VS_BUILD_TOOLS_PATH (
 
 REM vcpkg installation path - normalize forward slashes to backslashes for Windows
 if not defined VCPKG_ROOT (
-    set "VCPKG_ROOT=c:\vcpkg"
+    REM Default fallback - prefer workspace vcpkg if it exists
+    if exist "%~dp0vcpkg" (
+        set "VCPKG_ROOT=%~dp0vcpkg"
+        echo Using workspace vcpkg: "%~dp0vcpkg"
+    ) else if exist "c:\vcpkg" (
+        set "VCPKG_ROOT=c:\vcpkg"
+        echo Using system vcpkg: "c:\vcpkg"
+    ) else (
+        echo ERROR: No vcpkg installation found. Please set VCPKG_ROOT environment variable.
+        exit /b 1
+    )
 ) else (
     REM Replace forward slashes with backslashes for Windows path compatibility
     set "VCPKG_ROOT=%VCPKG_ROOT:/=\%"
+    echo Using environment vcpkg: "%VCPKG_ROOT%"
 )
 
 REM Target platform for vcpkg
@@ -42,6 +53,23 @@ echo   Visual Studio: "%VS_BUILD_TOOLS_PATH%"
 echo   vcpkg Root:    "%VCPKG_ROOT%"
 echo   Target:        "%VCPKG_TARGET%"
 echo   Output Dir:    "%OUTPUT_DIR%"
+echo.
+
+REM Validate that we're not using VS internal vcpkg
+if "%VCPKG_ROOT%" == "" (
+    echo ERROR: VCPKG_ROOT is empty
+    exit /b 1
+)
+
+REM Check if we're accidentally using Visual Studio's internal vcpkg
+echo "%VCPKG_ROOT%" | findstr /C:"Microsoft Visual Studio" >nul
+if %ERRORLEVEL% EQU 0 (
+    echo ERROR: Detected Visual Studio internal vcpkg path: "%VCPKG_ROOT%"
+    echo This will cause build issues. Please use a standalone vcpkg installation.
+    exit /b 1
+)
+
+echo ✅ Using standalone vcpkg installation: "%VCPKG_ROOT%"
 echo.
 
 REM Debug: Show the exact include path that will be used

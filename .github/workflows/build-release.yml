@@ -191,22 +191,34 @@ jobs:
         Write-Host "  Target: x64-windows-static"
         
         # Create a temporary batch file to ensure environment variables are passed correctly
-        $buildScript = @'
-@echo off
-set "VCPKG_ROOT=$vcpkgRoot"
-set "VCPKG_TARGET=x64-windows-static"
-set "OUTPUT_DIR=bin"
-$(if ($vsPath) { "set `"VS_BUILD_TOOLS_PATH=$vsPath`"" })
-echo Environment variables set:
-echo   VCPKG_ROOT=%VCPKG_ROOT%
-echo   VCPKG_TARGET=%VCPKG_TARGET%
-echo   OUTPUT_DIR=%OUTPUT_DIR%
-$(if ($vsPath) { "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%" })
-echo.
-call build.bat
-'@
+        $buildCommands = @(
+          "@echo off",
+          "set `"VCPKG_ROOT=$vcpkgRoot`"",
+          "set `"VCPKG_TARGET=x64-windows-static`"",
+          "set `"OUTPUT_DIR=bin`""
+        )
         
-        $buildScript | Out-File -FilePath "build-temp.bat" -Encoding ASCII
+        if ($vsPath) {
+          $buildCommands += "set `"VS_BUILD_TOOLS_PATH=$vsPath`""
+        }
+        
+        $buildCommands += @(
+          "echo Environment variables set:",
+          "echo   VCPKG_ROOT=%VCPKG_ROOT%",
+          "echo   VCPKG_TARGET=%VCPKG_TARGET%",
+          "echo   OUTPUT_DIR=%OUTPUT_DIR%"
+        )
+        
+        if ($vsPath) {
+          $buildCommands += "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%"
+        }
+        
+        $buildCommands += @(
+          "echo.",
+          "call build.bat"
+        )
+        
+        $buildCommands | Out-File -FilePath "build-temp.bat" -Encoding ASCII
         
         # Execute the temporary build script
         & .\build-temp.bat

@@ -154,6 +154,7 @@ jobs:
         name: SystemMonitor
         path: |
           bin/SystemMonitor.exe
+          config/*.cfg.email-sample
           config/*.cfg.sample
           config/*.cfg.template
           docs/*.*

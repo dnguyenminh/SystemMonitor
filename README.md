@@ -6,7 +6,42 @@
 
 A professional C++ Windows system monitoring application with real-time process tracking, intelligent email alerting, and multiple display modes. Features secure TLS email notifications, comprehensive logging, and enterprise-grade configuration management.
 
-## 🚀 Features
+## � Deployment
+
+### Static Linking Benefits
+
+SystemMonitor uses **static linking** for all third-party dependencies, which means:
+
+✅ **Self-contained executable** - No external DLLs required
+✅ **No vcpkg needed** on target machines  
+✅ **Easy deployment** - Just copy the executable and config
+✅ **Version consistency** - No library version conflicts
+
+### Deployment Requirements
+
+**Target Machine Requirements:**
+- Windows 10/11 or Windows Server 2016+
+- Visual C++ Redistributable 2022 (usually already installed)
+- No additional dependencies required
+
+**Deployment Package:**
+```
+deployment/
+├── SystemMonitor.exe        # Main executable (self-contained)
+├── config/
+│   └── SystemMonitor.cfg    # Configuration file
+└── README_DEPLOYMENT.txt    # Deployment instructions
+```
+
+### Distribution
+
+The compiled executable can be distributed and run on any compatible Windows machine without requiring:
+- vcpkg installation
+- libcurl installation  
+- Development tools
+- Additional library packages
+
+## 🧪 Testing
 
 ### Core Monitoring
 - **Real-time System Monitoring**: CPU, RAM, and Disk usage tracking
@@ -38,7 +73,7 @@ A professional C++ Windows system monitoring application with real-time process 
 
 - **Windows 10/11** or Windows Server 2016+
 - **Visual Studio 2022** Build Tools or Visual Studio Community 2022
-- **vcpkg** package manager (for libcurl TLS support)
+- **vcpkg** package manager (for libcurl TLS support during build only)
 - **Administrator privileges** (recommended for complete process monitoring)
 
 ## ⚙️ Installation
@@ -60,7 +95,7 @@ cd C:\vcpkg
 .\vcpkg integrate install
 ```
 
-**Note:** If you install vcpkg in a different location, make sure to set the `VCPKG_ROOT` environment variable or update the build script accordingly.
+**Note:** vcpkg is only required for **building** the application. The compiled executable uses **static linking** and can run on other Windows machines without vcpkg installed.
 
 ### 2. Build the Application
 
@@ -96,7 +131,7 @@ set EXE_NAME=SystemMonitor.exe
 | `VCPKG_ROOT` | vcpkg installation directory | `c:\vcpkg` |
 | `VCPKG_TARGET` | Target platform architecture | `x64-windows` |
 | `OUTPUT_DIR` | Output directory for executable | `bin` |
-| `EXE_NAME` | Name of output executable | `SystemMonitor_TLS.exe` |
+| `EXE_NAME` | Name of output executable | `SystemMonitor.exe` |
 
 **📖 For detailed build configuration options, see [docs/BUILD_CONFIGURATION.md](docs/BUILD_CONFIGURATION.md)**
 
@@ -138,7 +173,7 @@ set VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community
 ### Command Line Interface
 
 ```bash
-bin\SystemMonitor_TLS.exe [options]
+bin\SystemMonitor.exe [options]
 ```
 
 **Core Options:**
@@ -177,19 +212,19 @@ bin\SystemMonitor_TLS.exe [options]
 
 ```bash
 # Default monitoring with top-style display
-bin\SystemMonitor_TLS.exe
+bin\SystemMonitor.exe
 
 # High-frequency monitoring with compact display
-bin\SystemMonitor_TLS.exe --interval 2000 --display compact
+bin\SystemMonitor.exe --interval 2000 --display compact
 
 # Custom thresholds with debug logging
-bin\SystemMonitor_TLS.exe --cpu 90 --ram 85 --disk 75 --debug
+bin\SystemMonitor.exe --cpu 90 --ram 85 --disk 75 --debug
 
 # Line mode for automation/scripting
-bin\SystemMonitor_TLS.exe --display line --interval 10000
+bin\SystemMonitor.exe --display line --interval 10000
 
 # Silence mode for background server monitoring
-bin\SystemMonitor_TLS.exe --display silence --cpu 90 --ram 85
+bin\SystemMonitor.exe --display silence --cpu 90 --ram 85
 ```
 
 ## 📧 Email Configuration
@@ -373,7 +408,7 @@ SystemMonitor/
 ├── main.cpp                  # Application entry point
 ├── build.bat            # Build script with configurable paths
 ├── bin/
-│   └── SystemMonitor_TLS.exe # Compiled executable
+│   └── SystemMonitor.exe # Compiled executable
 ├── config/
 │   └── SystemMonitor.cfg    # Configuration file
 ├── include/                 # Header files
@@ -411,7 +446,7 @@ SystemMonitor/
 **Email notifications not working:**
 ```bash
 # Test email configuration
-bin\SystemMonitor_TLS.exe --debug
+bin\SystemMonitor.exe --debug
 # Check log files for SSL/TLS errors
 # Verify Gmail App Password is correct
 # Ensure firewall allows SMTP connections
@@ -420,8 +455,8 @@ bin\SystemMonitor_TLS.exe --debug
 **High resource usage:**
 ```bash
 # Use line mode or silence mode for minimal overhead
-bin\SystemMonitor_TLS.exe --display line --interval 10000
-bin\SystemMonitor_TLS.exe --display silence --interval 10000
+bin\SystemMonitor.exe --display line --interval 10000
+bin\SystemMonitor.exe --display silence --interval 10000
 ```
 
 **Permission errors:**
@@ -452,7 +487,7 @@ echo %VS_BUILD_TOOLS_PATH%
 
 Enable debug mode for detailed troubleshooting:
 ```bash
-bin\SystemMonitor_TLS.exe --debug
+bin\SystemMonitor.exe --debug
 ```
 
 Debug logs are written to `SystemMonitor_debug.log` and include:

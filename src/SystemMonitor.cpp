@@ -124,18 +124,15 @@ SystemUsage WindowsSystemMonitor::getSystemUsage() {
             currentMetrics.setRamPercent(ramPercent);
             currentMetrics.setDiskPercent(diskPercent);
             currentMetrics.setTotalSystemTime(total);
-            
-            if (isFirstMeasurement.exchange(false)) {
-                updateSystemInfo();
-            }
         }
         
-        // Log current usage (only if console output is not suppressed)
-        if (!g_suppressConsoleOutput) {
-            std::cout << "System Usage: CPU: " << std::fixed << std::setprecision(1) << cpuPercent 
-                      << "%, RAM: " << std::fixed << std::setprecision(1) << ramPercent 
-                      << "%, Disk I/O: " << std::fixed << std::setprecision(1) << diskPercent << "%" << std::endl;
+        // Handle first measurement outside of the lock to avoid deadlock
+        if (isFirstMeasurement.exchange(false)) {
+            updateSystemInfo();
         }
+        
+        // Note: Console output is handled by the display system in main.cpp
+        // This keeps the SystemMonitor class focused on data collection only
                   
         return SystemUsage(cpuPercent, ramPercent, diskPercent);
         

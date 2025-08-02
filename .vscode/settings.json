@@ -17,6 +17,7 @@
         "filesystem": "cpp",
         "cmath": "cpp",
         "memory": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "cstdlib": "cpp"
     }
 }

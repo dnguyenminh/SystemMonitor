@@ -139,16 +139,19 @@ jobs:
         
     - name: Build SystemMonitor
       run: |
-        # Use Developer Command Prompt environment (already set up)
-        # Override environment variables for build script
-        $vcpkgRootNormalized = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
-        $env:VCPKG_ROOT="$vcpkgRootNormalized"
-        $env:VCPKG_TARGET="x64-windows-static"
-        $env:OUTPUT_DIR="bin"
+    - name: Build SystemMonitor
+      run: |
+        # Normalize paths for Windows batch file compatibility
+        $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
         
-        Write-Host "🔧 Normalized paths for Windows:"
+        Write-Host "🔧 Setting up build environment:"
         Write-Host "  Original VCPKG_ROOT: ${{ env.VCPKG_ROOT }}"
-        Write-Host "  Normalized VCPKG_ROOT: $vcpkgRootNormalized"
+        Write-Host "  Normalized VCPKG_ROOT: $vcpkgRoot"
+        
+        # Set environment variables for build script
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:VCPKG_TARGET = "x64-windows-static"
+        $env:OUTPUT_DIR = "bin"
         
         # Find Visual Studio installation using vswhere (more reliable)
         $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -184,21 +187,16 @@ jobs:
         Write-Host "  vcpkg: $env:VCPKG_ROOT"
         Write-Host "  Target: $env:VCPKG_TARGET"
         
-        # Verify libcurl installation before building with multiple path formats
-        $curlHeaderPath1 = "$vcpkgRootNormalized\installed\x64-windows-static\include\curl\curl.h"
-        $curlHeaderPath2 = "${{ env.VCPKG_ROOT }}/installed/x64-windows-static/include/curl/curl.h"
-        
-        Write-Host "🔍 Pre-build verification:"
-        if (Test-Path $curlHeaderPath1) {
-          Write-Host "✅ libcurl headers found at: $curlHeaderPath1"
-        } elseif (Test-Path $curlHeaderPath2) {
-          Write-Host "✅ libcurl headers found at: $curlHeaderPath2"
+        # Final verification before build
+        $curlHeaderPath = "$vcpkgRoot\installed\x64-windows-static\include\curl\curl.h"
+        if (Test-Path $curlHeaderPath) {
+          Write-Host "✅ Final verification: libcurl headers found at $curlHeaderPath"
         } else {
-          Write-Host "❌ libcurl headers not found at either path:"
-          Write-Host "   Path 1: $curlHeaderPath1"
-          Write-Host "   Path 2: $curlHeaderPath2"
-          Write-Host "📂 Searching for curl.h in vcpkg..."
-          Get-ChildItem "$vcpkgRootNormalized" -Recurse -Filter "curl.h" -ErrorAction SilentlyContinue | Select-Object -First 5 | Format-Table FullName
+          Write-Host "❌ Final verification: libcurl headers missing at $curlHeaderPath"
+          Write-Host "📂 Directory listing:"
+          if (Test-Path "$vcpkgRoot\installed\x64-windows-static\include") {
+            Get-ChildItem "$vcpkgRoot\installed\x64-windows-static\include" | Format-Table Name
+          }
           exit 1
         }
         

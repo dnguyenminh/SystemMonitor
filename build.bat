@@ -14,9 +14,12 @@ if not defined VS_BUILD_TOOLS_PATH (
     set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 )
 
-REM vcpkg installation path
+REM vcpkg installation path - normalize forward slashes to backslashes for Windows
 if not defined VCPKG_ROOT (
     set "VCPKG_ROOT=c:\vcpkg"
+) else (
+    REM Replace forward slashes with backslashes for Windows path compatibility
+    set "VCPKG_ROOT=%VCPKG_ROOT:/=\%"
 )
 
 REM Target platform for vcpkg
@@ -39,6 +42,22 @@ echo   Visual Studio: "%VS_BUILD_TOOLS_PATH%"
 echo   vcpkg Root:    "%VCPKG_ROOT%"
 echo   Target:        "%VCPKG_TARGET%"
 echo   Output Dir:    "%OUTPUT_DIR%"
+echo.
+
+REM Debug: Show the exact include path that will be used
+echo Debug: Include path will be "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
+echo Debug: Checking if curl.h exists at "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include\curl\curl.h"
+if exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include\curl\curl.h" (
+    echo Debug: ✅ curl.h found!
+) else (
+    echo Debug: ❌ curl.h NOT found!
+    echo Debug: Listing contents of include directory:
+    if exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" (
+        dir "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" /B
+    ) else (
+        echo Debug: Include directory does not exist
+    )
+)
 echo.
 
 REM Check if vcpkg libcurl is available

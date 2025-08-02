@@ -16,6 +16,7 @@
         "vector": "cpp",
         "filesystem": "cpp",
         "cmath": "cpp",
-        "memory": "cpp"
+        "memory": "cpp",
+        "thread": "cpp"
     }
 }

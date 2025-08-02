@@ -8,11 +8,13 @@
 #include <conio.h>
 #include <algorithm>
 #include <chrono>
+#include <sstream>
 #include "include/SystemMetrics.h"
 #include "include/Configuration.h"
 #include "include/Logger.h"
 #include "include/ProcessManager.h"
 #include "include/SystemMonitor.h"
+#include "include/EmailNotifier.h"
 
     // Global flag to control console output during top-style display
 bool g_suppressConsoleOutput = false;
@@ -24,13 +26,14 @@ private:
     std::shared_ptr<ISystemMonitor> systemMonitor;
     std::unique_ptr<IProcessManager> processManager;
     std::unique_ptr<ILogger> logger;
+    std::unique_ptr<EmailNotifier> emailNotifier;
     bool isRunning = false;
     
     // Simple display variables
     HANDLE hConsole;
     std::chrono::steady_clock::time_point startTime;
     std::chrono::steady_clock::time_point lastDisplayUpdate;
-    int displayMode = 0; // 0 = line-by-line, 1 = top-style
+    int displayMode = 0; // 0 = line-by-line, 1 = top-style, 2 = compact
     bool firstDisplay = true;
     std::vector<ProcessInfo> lastProcesses;
 
@@ -38,6 +41,7 @@ private:
     void printStartupInfo() const;
     void initializeDisplay();
     void showTopStyleDisplay(const std::vector<ProcessInfo>& processes, const SystemUsage& systemUsage);
+    void showCompactDisplay(const std::vector<ProcessInfo>& processes, const SystemUsage& systemUsage);
     void clearScreen();
     void setCursorPosition(int row, int col);
     void hideCursor();
@@ -129,6 +133,20 @@ bool SystemMonitorApplication::initialize(int argc, char* argv[]) {
     // Set up singleton logger manager
     LoggerManager::getInstance().setLogger(std::move(logger));
     
+    // Initialize email notifier
+    emailNotifier = std::make_unique<EmailNotifier>(configManager->getConfig().getEmailConfig());
+    if (emailNotifier->isEnabled()) {
+        if (emailNotifier->testEmailConfiguration()) {
+            std::cout << "Email notifications enabled and configured correctly." << std::endl;
+            emailNotifier->start();
+        } else {
+            std::cout << "Warning: Email configuration test failed. Email alerts disabled." << std::endl;
+            emailNotifier.reset(); // Disable email notifier
+        }
+    } else {
+        std::cout << "Email notifications disabled." << std::endl;
+    }
+    
     // Initialize simple display
     initializeDisplay();
     
@@ -163,9 +181,18 @@ void SystemMonitorApplication::run() {
         case 2:
             std::cout << "compact display mode." << std::endl;
             break;
+        case 3:
+            std::cout << "silence display mode." << std::endl;
+            break;
     }
-    std::cout << "Press 'q' to quit, 't' to toggle display mode." << std::endl;
-    Sleep(2000); // Give user time to read the message
+    if (displayMode != 3) {
+        std::cout << "Press 'q' to quit, 't' to toggle display mode." << std::endl;
+        Sleep(2000); // Give user time to read the message
+    } else {
+        std::cout << "Silence mode: Output will be shown only when thresholds are exceeded." << std::endl;
+        std::cout << "Press 'q' to quit, 't' to toggle display mode." << std::endl;
+        Sleep(3000); // Give user more time to read silence mode message
+    }
     
     unsigned int monitorCount = 0;
     const auto& config = configManager->getConfig();
@@ -198,10 +225,57 @@ void SystemMonitorApplication::run() {
             std::vector<ProcessInfo> aggregatedProcesses = processManager->getAggregatedProcessTree(processes);
             
             // Display using simple system - only update every 2 seconds to reduce flashing
+            bool systemExceedsThresholds = 
+                systemUsage.getCpuPercent() > config.getCpuThreshold() ||
+                systemUsage.getRamPercent() > config.getRamThreshold() ||
+                systemUsage.getDiskPercent() > config.getDiskThreshold();
+            
             if (displayMode == 1) {
                 g_suppressConsoleOutput = true; // Suppress console output during top-style display
                 if (shouldUpdateDisplay() || firstDisplay) {
                     showTopStyleDisplay(aggregatedProcesses, correctedSystemUsage);
+                }
+            } else if (displayMode == 2) {
+                g_suppressConsoleOutput = true; // Suppress console output during compact display
+                if (shouldUpdateDisplay() || firstDisplay) {
+                    showCompactDisplay(aggregatedProcesses, correctedSystemUsage);
+                }
+            } else if (displayMode == 3) {
+                g_suppressConsoleOutput = false; // Allow console output in silence mode when needed
+                // Silence mode - only show output when thresholds are exceeded
+                if (systemExceedsThresholds) {
+                    // Get current time for the alert
+                    auto now = std::chrono::system_clock::now();
+                    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+                    std::tm tm;
+                    localtime_s(&tm, &now_c);
+                    char timeStr[32];
+                    std::strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &tm);
+                    
+                    std::cout << "[" << timeStr << "] THRESHOLD EXCEEDED - CPU: " 
+                              << std::fixed << std::setprecision(1) << correctedSystemUsage.getCpuPercent() 
+                              << "% (>" << config.getCpuThreshold() << "%) RAM: " 
+                              << correctedSystemUsage.getRamPercent() << "% (>" << config.getRamThreshold() 
+                              << "%) Disk: " << correctedSystemUsage.getDiskPercent() << "% (>" 
+                              << config.getDiskThreshold() << "%)" << std::endl;
+                    
+                    // Show top 5 resource-consuming processes
+                    std::vector<ProcessInfo> topProcesses = aggregatedProcesses;
+                    std::sort(topProcesses.begin(), topProcesses.end(), 
+                              [](const ProcessInfo& a, const ProcessInfo& b) {
+                                  return (a.getCpuPercent() + a.getRamPercent() + a.getDiskPercent()) > 
+                                         (b.getCpuPercent() + b.getRamPercent() + b.getDiskPercent());
+                              });
+                    
+                    std::cout << "    Top processes: ";
+                    for (size_t i = 0; i < std::min<size_t>(3, topProcesses.size()); ++i) {
+                        const auto& proc = topProcesses[i];
+                        if (i > 0) std::cout << ", ";
+                        std::cout << proc.getName() << "[" << proc.getPid() << "] "
+                                  << "(" << std::fixed << std::setprecision(1) 
+                                  << proc.getCpuPercent() << "% CPU)";
+                    }
+                    std::cout << std::endl;
                 }
             } else {
                 g_suppressConsoleOutput = false; // Allow console output in line-by-line mode
@@ -212,11 +286,6 @@ void SystemMonitorApplication::run() {
             }
             
             // Log processes when system resources exceed thresholds
-            bool systemExceedsThresholds = 
-                systemUsage.getCpuPercent() > config.getCpuThreshold() ||
-                systemUsage.getRamPercent() > config.getRamThreshold() ||
-                systemUsage.getDiskPercent() > config.getDiskThreshold();
-            
             if (systemExceedsThresholds || config.isDebugMode()) {
                 // When system exceeds thresholds, log all processes consuming resources
                 std::vector<ProcessInfo> processesToLog;
@@ -232,6 +301,91 @@ void SystemMonitorApplication::run() {
                 
                 // Log all active processes when system thresholds are exceeded
                 LoggerManager::getInstance().logProcesses(processesToLog, correctedSystemUsage);
+                
+                // Email alerting for threshold violations
+                if (emailNotifier && systemExceedsThresholds) {
+                    // Generate detailed log entry for email alert (same format as logger)
+                    std::ostringstream detailedLogEntry;
+                    
+                    // Calculate process usage totals
+                    double totalProcessCpu = 0.0;
+                    double totalProcessRam = 0.0;
+                    double totalProcessDisk = 0.0;
+                    
+                    for (const auto& process : processesToLog) {
+                        totalProcessCpu += process.getCpuPercent();
+                        totalProcessRam += process.getRamPercent();
+                        totalProcessDisk += process.getDiskPercent();
+                    }
+                    
+                    // Calculate "unaccounted" usage (system overhead, kernel, cache, etc.)
+                    double unaccountedCpu = correctedSystemUsage.getCpuPercent() - totalProcessCpu;
+                    double unaccountedRam = correctedSystemUsage.getRamPercent() - totalProcessRam;
+                    double unaccountedDisk = correctedSystemUsage.getDiskPercent() - totalProcessDisk;
+                    if (unaccountedCpu < 0) unaccountedCpu = 0.0;
+                    if (unaccountedRam < 0) unaccountedRam = 0.0;
+                    if (unaccountedDisk < 0) unaccountedDisk = 0.0;
+                    
+                    // Get current time
+                    auto now = std::chrono::system_clock::now();
+                    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+                    std::tm tm;
+                    localtime_s(&tm, &now_c);
+                    char timeStr[32];
+                    std::strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &tm);
+                    
+                    // Create the detailed log entry in the same format as the logger
+                    detailedLogEntry << "===Start " << timeStr 
+                        << " [System CPU " << std::fixed << std::setprecision(2) << correctedSystemUsage.getCpuPercent()
+                        << "%] [System RAM " << std::fixed << std::setprecision(2) << correctedSystemUsage.getRamPercent()
+                        << "%] [System Disk " << std::fixed << std::setprecision(2) << correctedSystemUsage.getDiskPercent() 
+                        << "%]===\n";
+                    
+                    // System analysis lines
+                    detailedLogEntry << "SYSTEM ANALYSIS: CPU: Processes=" << std::fixed << std::setprecision(2) << totalProcessCpu 
+                        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedCpu 
+                        << "% = Total=" << std::fixed << std::setprecision(2) << correctedSystemUsage.getCpuPercent() << "%\n";
+                    detailedLogEntry << "SYSTEM ANALYSIS: RAM: Processes=" << std::fixed << std::setprecision(2) << totalProcessRam 
+                        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedRam 
+                        << "% = Total=" << std::fixed << std::setprecision(2) << correctedSystemUsage.getRamPercent() << "%\n";
+                    detailedLogEntry << "SYSTEM ANALYSIS: DISK: Processes=" << std::fixed << std::setprecision(2) << totalProcessDisk 
+                        << "% + System/Kernel=" << std::fixed << std::setprecision(2) << unaccountedDisk 
+                        << "% = Total=" << std::fixed << std::setprecision(2) << correctedSystemUsage.getDiskPercent() << "%\n";
+                    
+                    // Individual process entries
+                    for (const auto& process : processesToLog) {
+                        detailedLogEntry << timeStr << ", " 
+                            << process.getName() << ", " 
+                            << process.getPid() 
+                            << ", [CPU " << std::fixed << std::setprecision(2) << process.getCpuPercent()
+                            << "%] [RAM " << std::fixed << std::setprecision(2) << process.getRamPercent()
+                            << "%] [Disk " << std::fixed << std::setprecision(2) << process.getDiskPercent() 
+                            << "%]\n";
+                    }
+                    
+                    // Resource totals
+                    detailedLogEntry << "TOTALS: [Process CPU " << std::fixed << std::setprecision(2) << totalProcessCpu
+                        << "%] [Process RAM " << std::fixed << std::setprecision(2) << totalProcessRam
+                        << "%] [Process Disk " << std::fixed << std::setprecision(2) << totalProcessDisk << "%]\n";
+                    
+                    if (unaccountedRam > 5.0) { // Show significant system overhead
+                        detailedLogEntry << "SYSTEM OVERHEAD: [CPU " << std::fixed << std::setprecision(2) << unaccountedCpu
+                            << "%] [RAM " << std::fixed << std::setprecision(2) << unaccountedRam
+                            << "%] [Disk " << std::fixed << std::setprecision(2) << unaccountedDisk << "%] (Kernel/Cache/Buffers)\n";
+                    }
+                    
+                    // End banner
+                    detailedLogEntry << "===End  " << timeStr 
+                        << " [System CPU " << std::fixed << std::setprecision(2) << correctedSystemUsage.getCpuPercent()
+                        << "%] [System RAM " << std::fixed << std::setprecision(2) << correctedSystemUsage.getRamPercent()
+                        << "%] [System Disk " << std::fixed << std::setprecision(2) << correctedSystemUsage.getDiskPercent() 
+                        << "%]===";
+                    
+                    emailNotifier->checkThresholds(true, detailedLogEntry.str());
+                }
+            } else if (emailNotifier) {
+                // Reset email alert state when thresholds are no longer exceeded
+                emailNotifier->checkThresholds(false, "");
             }
             
             monitorCount++;
@@ -254,6 +408,11 @@ void SystemMonitorApplication::shutdown() {
     
     // Restore cursor visibility
     showCursor();
+    
+    // Shutdown email notifier
+    if (emailNotifier) {
+        emailNotifier->stop();
+    }
     
     if (processManager) {
         processManager->shutdown();
@@ -305,6 +464,9 @@ void SystemMonitorApplication::printStartupInfo() const {
         case DisplayModeConfig::COMPACT:
             std::cout << "Compact table";
             break;
+        case DisplayModeConfig::SILENCE:
+            std::cout << "Silence mode";
+            break;
     }
     std::cout << std::endl;
     std::cout << "Log file: " << config.getLogFilePath() << std::endl;
@@ -320,6 +482,15 @@ void SystemMonitorApplication::printStartupInfo() const {
                   << logConfig.getMaxBackupFiles() << ")";
     }
     std::cout << std::endl;
+    
+    // Email configuration info
+    const auto& emailConfig = config.getEmailConfig();
+    std::cout << "Email alerts: " << (emailConfig.enableEmailAlerts ? "Enabled" : "Disabled");
+    if (emailConfig.enableEmailAlerts) {
+        std::cout << " (Alert duration: " << emailConfig.alertDurationSeconds 
+                  << "s, Cooldown: " << emailConfig.cooldownMinutes << "m)";
+    }
+    std::cout << std::endl;
 }
 
 void SystemMonitorApplication::initializeDisplay() {
@@ -333,12 +504,15 @@ void SystemMonitorApplication::initializeDisplay() {
             displayMode = 1;
             break;
         case DisplayModeConfig::COMPACT:
-            displayMode = 2; // Future implementation
+            displayMode = 2; // Now implemented
+            break;
+        case DisplayModeConfig::SILENCE:
+            displayMode = 3; // Silence mode
             break;
     }
     
-    if (displayMode == 1) {
-        hideCursor(); // Hide cursor for cleaner display in top-style mode
+    if (displayMode == 1 || displayMode == 2) {
+        hideCursor(); // Hide cursor for cleaner display in top-style and compact modes
     }
 }
 
@@ -456,6 +630,100 @@ void SystemMonitorApplication::showTopStyleDisplay(const std::vector<ProcessInfo
     std::cout.flush();
 }
 
+void SystemMonitorApplication::showCompactDisplay(const std::vector<ProcessInfo>& processes, const SystemUsage& systemUsage) {
+    // Only clear screen on first display or mode change
+    if (firstDisplay) {
+        clearScreen();
+        firstDisplay = false;
+    }
+    
+    // Always go to top of screen for updates
+    setCursorPosition(0, 0);
+    
+    auto now = std::chrono::steady_clock::now();
+    auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+    
+    // Compact header - single line with all key info
+    std::cout << "SystemMonitor [" << std::setw(4) << uptime << "s] CPU:" 
+              << std::fixed << std::setprecision(1) << std::setw(5) << systemUsage.getCpuPercent() << "% RAM:"
+              << std::fixed << std::setprecision(1) << std::setw(5) << systemUsage.getRamPercent() << "% Disk:"
+              << std::fixed << std::setprecision(1) << std::setw(5) << systemUsage.getDiskPercent() << "% Proc:"
+              << std::setw(3) << processes.size();
+    std::cout << std::string(15, ' ') << "\n"; // Clear rest of line
+    
+    // Sort processes by total resource usage (CPU + RAM + Disk)
+    std::vector<ProcessInfo> sortedProcesses = processes;
+    std::sort(sortedProcesses.begin(), sortedProcesses.end(), 
+              [](const ProcessInfo& a, const ProcessInfo& b) {
+                  double totalA = a.getCpuPercent() + a.getRamPercent() + a.getDiskPercent();
+                  double totalB = b.getCpuPercent() + b.getRamPercent() + b.getDiskPercent();
+                  return totalA > totalB;
+              });
+    
+    // Compact process list - only show processes using significant resources
+    std::cout << "Top Resource Consumers:" << std::string(40, ' ') << "\n";
+    int lineCount = 0;
+    const int maxLines = 10; // Limit to 10 lines for compact view
+    
+    for (const auto& process : sortedProcesses) {
+        // Only show processes with significant resource usage
+        if ((process.getCpuPercent() > 0.5 || process.getRamPercent() > 1.0 || process.getDiskPercent() > 0.1) 
+            && lineCount < maxLines) {
+            
+            std::string name = process.getName();
+            if (name.length() > 12) {
+                name = name.substr(0, 9) + "...";
+            }
+            
+            // Compact format: name[pid] C:x.x% R:x.x% D:x.x%
+            std::cout << std::setw(13) << name << "[" << std::setw(5) << process.getPid() << "] "
+                      << "C:" << std::fixed << std::setprecision(1) << std::setw(4) << process.getCpuPercent() << "% "
+                      << "R:" << std::fixed << std::setprecision(1) << std::setw(4) << process.getRamPercent() << "% "
+                      << "D:" << std::fixed << std::setprecision(1) << std::setw(4) << process.getDiskPercent() << "%";
+            std::cout << std::string(20, ' ') << "\n"; // Clear rest of line
+            lineCount++;
+        }
+    }
+    
+    // Fill remaining lines with spaces if needed
+    for (int i = lineCount; i < maxLines; ++i) {
+        std::cout << std::string(70, ' ') << "\n";
+    }
+    
+    // Calculate system resource distribution
+    double totalProcessCpu = 0.0, totalProcessRam = 0.0, totalProcessDisk = 0.0;
+    for (const auto& process : processes) {
+        totalProcessCpu += process.getCpuPercent();
+        totalProcessRam += process.getRamPercent();
+        totalProcessDisk += process.getDiskPercent();
+    }
+    
+    double systemCpu = systemUsage.getCpuPercent() - totalProcessCpu;
+    double systemRam = systemUsage.getRamPercent() - totalProcessRam;
+    double systemDisk = systemUsage.getDiskPercent() - totalProcessDisk;
+    if (systemCpu < 0) systemCpu = 0.0;
+    if (systemRam < 0) systemRam = 0.0;
+    if (systemDisk < 0) systemDisk = 0.0;
+    
+    // Compact resource summary
+    std::cout << "Resource Split: Processes[C:" << std::fixed << std::setprecision(1) << totalProcessCpu 
+              << "% R:" << totalProcessRam << "% D:" << totalProcessDisk << "%] System[C:" 
+              << systemCpu << "% R:" << systemRam << "% D:" << systemDisk << "%]";
+    std::cout << std::string(5, ' ') << "\n"; // Clear rest of line
+    
+    // Compact status and controls
+    std::cout << "Status: " << (systemUsage.getCpuPercent() > 80 || systemUsage.getRamPercent() > 80 ? "HIGH LOAD" : "Normal")
+              << " | Controls: [q]uit [t]oggle mode" << std::string(20, ' ') << "\n";
+    
+    // Fill remaining screen with blank lines
+    for (int i = 0; i < 5; ++i) {
+        std::cout << std::string(70, ' ') << "\n";
+    }
+    
+    // Flush output to ensure immediate display
+    std::cout.flush();
+}
+
 bool SystemMonitorApplication::checkForKeyPress() {
     return _kbhit() != 0;
 }
@@ -469,9 +737,14 @@ void SystemMonitorApplication::handleKeyPress() {
             isRunning = false;
             break;
         case 't':
-            displayMode = (displayMode == 0) ? 1 : 0;
-            g_suppressConsoleOutput = (displayMode == 1); // Set based on new mode
+            displayMode = (displayMode + 1) % 4; // Cycle through 0, 1, 2, 3 (line, top, compact, silence)
+            g_suppressConsoleOutput = (displayMode == 1 || displayMode == 2); // Set based on new mode
             firstDisplay = true; // Force screen clear on mode change
+            if (displayMode == 1 || displayMode == 2) {
+                hideCursor();
+            } else {
+                showCursor();
+            }
             break;
     }
 }

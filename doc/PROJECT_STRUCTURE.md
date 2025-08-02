@@ -28,7 +28,7 @@ SystemMonitor/
 │   ├── *.obj files
 │   └── ...
 ├── main.cpp              # Main entry point
-├── build.bat             # Build script
+├── build.bat             # Unified build script with configurable paths
 └── .gitignore           # Git ignore file
 ```
 
@@ -40,17 +40,25 @@ build.bat
 ```
 
 This will:
+- Check for required dependencies (Visual Studio, vcpkg, libcurl)
+- Display configuration paths for transparency
 - Create the `bin/` directory if it doesn't exist
-- Create the `config/` directory if it doesn't exist
-- Clean old object files
-- Compile all source files
-- Output the executable and object files to the `bin/` directory
+- Compile all source files with libcurl TLS support
+- Output the executable to the configured directory
+- Clean up object files after successful compilation
+
+The build script supports configurable environment variables:
+- `VS_BUILD_TOOLS_PATH`: Visual Studio installation path
+- `VCPKG_ROOT`: vcpkg installation directory
+- `VCPKG_TARGET`: Target platform (x64-windows, x86-windows)
+- `OUTPUT_DIR`: Output directory for executable
+- `EXE_NAME`: Name of output executable
 
 ## Running the Application
 
 After building, run the application from the project root:
 ```bash
-bin\SystemMonitor.exe --display top
+bin\SystemMonitor_TLS.exe --display top
 ```
 
 ## Documentation

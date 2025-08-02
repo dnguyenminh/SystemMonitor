@@ -33,6 +33,12 @@ MonitorConfig::MonitorConfig(const LogConfig& logCfg) : logConfig(logCfg) {
     logFilePath = logConfig.getLogPath();
 }
 
+MonitorConfig::MonitorConfig(const LogConfig& logCfg, const EmailConfig& emailCfg) 
+    : logConfig(logCfg), emailConfig(emailCfg) {
+    setDefaults();
+    logFilePath = logConfig.getLogPath();
+}
+
 bool MonitorConfig::validate() const {
     return BaseConfig::validate() && !logFilePath.empty();
 }
@@ -163,6 +169,94 @@ bool ConfigurationManager::loadFromFile(const std::string& filename) {
                 config.setDisplayMode(DisplayModeConfig::TOP_STYLE);
             } else if (value == "COMPACT" || value == "2") {
                 config.setDisplayMode(DisplayModeConfig::COMPACT);
+            } else if (value == "SILENCE" || value == "3") {
+                config.setDisplayMode(DisplayModeConfig::SILENCE);
+            }
+        }
+        // Email configuration
+        else if (key == "EMAIL_ENABLED") {
+            config.getEmailConfig().enableEmailAlerts = (value == "true" || value == "1");
+        } else if (key == "EMAIL_SMTP_SERVER") {
+            config.getEmailConfig().smtpServer = value;
+        } else if (key == "EMAIL_SMTP_PORT") {
+            try {
+                int port = std::stoi(value);
+                if (port > 0 && port <= 65535) {
+                    config.getEmailConfig().smtpPort = port;
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "EMAIL_SENDER") {
+            config.getEmailConfig().senderEmail = value;
+        } else if (key == "EMAIL_PASSWORD") {
+            config.getEmailConfig().senderPassword = value;
+        } else if (key == "EMAIL_SENDER_NAME") {
+            config.getEmailConfig().senderName = value;
+        } else if (key == "EMAIL_RECIPIENTS") {
+            // Parse comma-separated email list
+            config.getEmailConfig().recipients.clear();
+            std::string::size_type start = 0;
+            std::string::size_type end = value.find(',');
+            while (end != std::string::npos) {
+                std::string email = value.substr(start, end - start);
+                // Trim whitespace
+                email.erase(0, email.find_first_not_of(" \t"));
+                email.erase(email.find_last_not_of(" \t") + 1);
+                if (!email.empty()) {
+                    config.getEmailConfig().recipients.push_back(email);
+                }
+                start = end + 1;
+                end = value.find(',', start);
+            }
+            // Add last email
+            std::string email = value.substr(start);
+            email.erase(0, email.find_first_not_of(" \t"));
+            email.erase(email.find_last_not_of(" \t") + 1);
+            if (!email.empty()) {
+                config.getEmailConfig().recipients.push_back(email);
+            }
+        } else if (key == "EMAIL_USE_TLS") {
+            config.getEmailConfig().useTLS = (value == "true" || value == "1");
+        } else if (key == "EMAIL_USE_SSL") {
+            config.getEmailConfig().useSSL = (value == "true" || value == "1");
+        } else if (key == "EMAIL_TIMEOUT_SECONDS") {
+            try {
+                int timeout = std::stoi(value);
+                if (timeout > 0) {
+                    config.getEmailConfig().timeoutSeconds = timeout;
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "EMAIL_ALERT_DURATION_SECONDS") {
+            try {
+                int duration = std::stoi(value);
+                if (duration > 0) {
+                    config.getEmailConfig().alertDurationSeconds = duration;
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "EMAIL_COOLDOWN_MINUTES") {
+            try {
+                int cooldown = std::stoi(value);
+                if (cooldown > 0) {
+                    config.getEmailConfig().cooldownMinutes = cooldown;
+                }
+            } catch (...) {
+                // Ignore parsing errors
+            }
+        } else if (key == "EMAIL_SEND_RECOVERY_ALERTS") {
+            config.getEmailConfig().sendRecoveryAlerts = (value == "true" || value == "1");
+        } else if (key == "EMAIL_RECOVERY_DURATION_SECONDS") {
+            try {
+                int duration = std::stoi(value);
+                if (duration > 0) {
+                    config.getEmailConfig().recoveryDurationSeconds = duration;
+                }
+            } catch (...) {
+                // Ignore parsing errors
             }
         }
     }
@@ -230,8 +324,35 @@ bool ConfigurationManager::saveToFile(const std::string& filename) const {
         case DisplayModeConfig::COMPACT:
             configFile << "COMPACT";
             break;
+        case DisplayModeConfig::SILENCE:
+            configFile << "SILENCE";
+            break;
     }
     configFile << std::endl;
+
+    // Email configuration
+    configFile << "EMAIL_ENABLED=" << (config.getEmailConfig().enableEmailAlerts ? "true" : "false") << std::endl;
+    configFile << "EMAIL_SMTP_SERVER=" << config.getEmailConfig().smtpServer << std::endl;
+    configFile << "EMAIL_SMTP_PORT=" << config.getEmailConfig().smtpPort << std::endl;
+    configFile << "EMAIL_SENDER=" << config.getEmailConfig().senderEmail << std::endl;
+    configFile << "EMAIL_PASSWORD=" << config.getEmailConfig().senderPassword << std::endl;
+    configFile << "EMAIL_SENDER_NAME=" << config.getEmailConfig().senderName << std::endl;
+    
+    // Recipients as comma-separated list
+    configFile << "EMAIL_RECIPIENTS=";
+    for (size_t i = 0; i < config.getEmailConfig().recipients.size(); ++i) {
+        if (i > 0) configFile << ",";
+        configFile << config.getEmailConfig().recipients[i];
+    }
+    configFile << std::endl;
+    
+    configFile << "EMAIL_USE_TLS=" << (config.getEmailConfig().useTLS ? "true" : "false") << std::endl;
+    configFile << "EMAIL_USE_SSL=" << (config.getEmailConfig().useSSL ? "true" : "false") << std::endl;
+    configFile << "EMAIL_TIMEOUT_SECONDS=" << config.getEmailConfig().timeoutSeconds << std::endl;
+    configFile << "EMAIL_ALERT_DURATION_SECONDS=" << config.getEmailConfig().alertDurationSeconds << std::endl;
+    configFile << "EMAIL_COOLDOWN_MINUTES=" << config.getEmailConfig().cooldownMinutes << std::endl;
+    configFile << "EMAIL_SEND_RECOVERY_ALERTS=" << (config.getEmailConfig().sendRecoveryAlerts ? "true" : "false") << std::endl;
+    configFile << "EMAIL_RECOVERY_DURATION_SECONDS=" << config.getEmailConfig().recoveryDurationSeconds << std::endl;
 
     return configFile.good();
 }
@@ -321,8 +442,10 @@ bool ConfigurationManager::parseCommandLine(int argc, char* argv[]) {
                     config.setDisplayMode(DisplayModeConfig::TOP_STYLE);
                 } else if (value == "compact" || value == "COMPACT" || value == "2") {
                     config.setDisplayMode(DisplayModeConfig::COMPACT);
+                } else if (value == "silence" || value == "SILENCE" || value == "3") {
+                    config.setDisplayMode(DisplayModeConfig::SILENCE);
                 } else {
-                    std::cerr << "Invalid display mode: " << value << ". Use: line, top, or compact" << std::endl;
+                    std::cerr << "Invalid display mode: " << value << ". Use: line, top, compact, or silence" << std::endl;
                 }
                 i++;
             }
@@ -347,7 +470,7 @@ void ConfigurationManager::printUsage() const {
               << "  --ram PERCENT        RAM threshold percentage (default: 80.0)\n"
               << "  --disk PERCENT       Disk threshold percentage (default: 80.0)\n"
               << "  --interval MS        Monitoring interval in milliseconds (default: 5000)\n"
-              << "  --display MODE       Display mode: line, top, compact (default: top)\n"
+              << "  --display MODE       Display mode: line, top, compact, silence (default: top)\n"
               << "  --mode MODE          Alias for --display\n"
               << "  --debug              Enable debug logging\n"
               << "  --log-size MB        Maximum log file size in MB (default: 10)\n"
@@ -364,6 +487,7 @@ void ConfigurationManager::printUsage() const {
               << "  line                 Traditional line-by-line output\n"
               << "  top                  Interactive table display like Linux top (default)\n"
               << "  compact              Compact table view\n"
+              << "  silence              Silent mode - only shows output when thresholds are exceeded\n"
               << "\n"
               << "Examples:\n"
               << "  SystemMonitor --display top\n"

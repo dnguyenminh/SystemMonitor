@@ -2,13 +2,16 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 #include "Logger.h"
+#include "EmailNotifier.h"
 
 // Display mode enumeration
 enum class DisplayModeConfig {
     LINE_BY_LINE = 0,    // Traditional line output
     TOP_STYLE = 1,       // Interactive table display like Linux top
-    COMPACT = 2          // Compact table view
+    COMPACT = 2,         // Compact table view
+    SILENCE = 3          // Silent mode - only show output when thresholds exceeded
 };
 
 // Base configuration class
@@ -51,15 +54,19 @@ class MonitorConfig : public BaseConfig {
 private:
     std::string logFilePath = "SystemMonitor.log";
     LogConfig logConfig;
+    EmailConfig emailConfig;
 
 public:
     MonitorConfig();
     explicit MonitorConfig(const LogConfig& logCfg);
+    MonitorConfig(const LogConfig& logCfg, const EmailConfig& emailCfg);
 
     // Getters
     const std::string& getLogFilePath() const { return logFilePath; }
     const LogConfig& getLogConfig() const { return logConfig; }
     LogConfig& getLogConfig() { return logConfig; }
+    const EmailConfig& getEmailConfig() const { return emailConfig; }
+    EmailConfig& getEmailConfig() { return emailConfig; }
 
     // Setters
     void setLogFilePath(const std::string& path) { 
@@ -67,6 +74,7 @@ public:
         logConfig.setLogPath(path);
     }
     void setLogConfig(const LogConfig& config) { logConfig = config; }
+    void setEmailConfig(const EmailConfig& config) { emailConfig = config; }
 
     // Override virtual methods
     bool validate() const override;

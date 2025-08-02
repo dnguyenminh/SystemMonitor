@@ -241,7 +241,7 @@ SystemMonitor/
 │   ├── SystemMetrics.cpp
 │   └── SystemMonitor.cpp
 ├── main.cpp          # Application entry point
-├── build.bat         # Build script
+├── build.bat             # Unified build script with configurable paths
 └── SystemMonitor.cfg # Configuration file
 ```
 

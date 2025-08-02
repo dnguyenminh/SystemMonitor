@@ -191,7 +191,7 @@ jobs:
         Write-Host "  Target: x64-windows-static"
         
         # Create a temporary batch file to ensure environment variables are passed correctly
-        $buildScript = @"
+        $buildScript = @'
 @echo off
 set "VCPKG_ROOT=$vcpkgRoot"
 set "VCPKG_TARGET=x64-windows-static"
@@ -204,7 +204,7 @@ echo   OUTPUT_DIR=%OUTPUT_DIR%
 $(if ($vsPath) { "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%" })
 echo.
 call build.bat
-"@
+'@
         
         $buildScript | Out-File -FilePath "build-temp.bat" -Encoding ASCII
         
@@ -352,28 +352,28 @@ call build.bat
         }
         
         # Create deployment guide
-        @"
+        $deploymentContent = @'
 # SystemMonitor $version - Deployment Package
 
 ## 🚀 Quick Start
 1. Extract all files to your preferred directory
-2. Copy ``config\SystemMonitor.cfg.template`` to ``config\SystemMonitor.cfg``
-3. Edit ``config\SystemMonitor.cfg`` with your email settings
-4. Run: ``SystemMonitor.exe --display silence``
+2. Copy config\SystemMonitor.cfg.template to config\SystemMonitor.cfg
+3. Edit config\SystemMonitor.cfg with your email settings
+4. Run: SystemMonitor.exe --display silence
 
 ## ✨ Features
-- **Real-time Monitoring**: CPU, RAM, and Disk usage tracking
-- **TLS Email Alerts**: Secure Gmail SMTP notifications
-- **Multiple Display Modes**: Line, top, compact, silence
-- **Static Linking**: No external dependencies required
-- **Enterprise Ready**: Professional monitoring solution
+- Real-time Monitoring: CPU, RAM, and Disk usage tracking
+- TLS Email Alerts: Secure Gmail SMTP notifications
+- Multiple Display Modes: Line, top, compact, silence
+- Static Linking: No external dependencies required
+- Enterprise Ready: Professional monitoring solution
 
 ## 📋 Requirements
 - Windows 10/11 or Windows Server 2016+
 - Visual C++ Redistributable 2022 (typically pre-installed)
 
 ## ⚙️ Configuration
-Edit ``config\SystemMonitor.cfg``:
+Edit config\SystemMonitor.cfg:
 - Set monitoring thresholds (CPU/RAM/Disk %)
 - Configure Gmail SMTP with App Password
 - Customize alert timing and cooldown periods
@@ -388,7 +388,9 @@ Edit ``config\SystemMonitor.cfg``:
 - Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
 - Compiler: MSVC with static libcurl
 - Dependencies: Statically linked (self-contained)
-"@ | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
+'@
+        
+        $deploymentContent | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
         
         # Create ZIP archive
         Compress-Archive -Path "$releaseDir\*" -DestinationPath "SystemMonitor-$version.zip" -Force
@@ -401,7 +403,7 @@ Edit ``config\SystemMonitor.cfg``:
     - name: Generate Release Notes
       run: |
         $version = $env:VERSION
-        $releaseNotes = @"
+        $releaseNotes = @'
 ## SystemMonitor $version
 
 ### 🎯 What's New
@@ -411,30 +413,30 @@ Edit ``config\SystemMonitor.cfg``:
 - Configurable thresholds and smart alerting
 
 ### 📦 Deployment
-- **Self-contained**: No vcpkg or external libraries needed
-- **Production ready**: Suitable for server monitoring
-- **Easy setup**: Extract, configure, and run
+- Self-contained: No vcpkg or external libraries needed
+- Production ready: Suitable for server monitoring
+- Easy setup: Extract, configure, and run
 
 ### 🔧 Features
-- **Real-time monitoring**: CPU, RAM, Disk usage
-- **Email notifications**: TLS-encrypted Gmail SMTP
-- **Silent operation**: Perfect for background monitoring
-- **Professional logging**: Rotation and debug support
+- Real-time monitoring: CPU, RAM, Disk usage
+- Email notifications: TLS-encrypted Gmail SMTP
+- Silent operation: Perfect for background monitoring
+- Professional logging: Rotation and debug support
 
 ### 📥 Installation
-1. Download ``SystemMonitor-$version.zip``
+1. Download SystemMonitor-$version.zip
 2. Extract to your target directory
-3. Configure ``config/SystemMonitor.cfg``
-4. Run: ``SystemMonitor.exe --display silence``
+3. Configure config/SystemMonitor.cfg
+4. Run: SystemMonitor.exe --display silence
 
 ### 🏗️ Build Information
-- **Compiled**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
-- **Compiler**: Visual Studio 2022 (MSVC)
-- **Dependencies**: libcurl with TLS (statically linked)
-- **Platform**: Windows x64
+- Compiled: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+- Compiler: Visual Studio 2022 (MSVC)
+- Dependencies: libcurl with TLS (statically linked)
+- Platform: Windows x64
 
 Built automatically by GitHub Actions from commit $env:GITHUB_SHA
-"@
+'@
         
         $releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
         echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV

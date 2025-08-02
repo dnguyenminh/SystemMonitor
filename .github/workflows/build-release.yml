@@ -63,7 +63,31 @@ jobs:
     - name: Install dependencies
       run: |
         cd ${{ env.VCPKG_ROOT }}
-        .\vcpkg install curl[ssl]:x64-windows-static
+        
+        # Ensure we're using the correct triplet
+        Write-Host "📦 Installing libcurl with SSL support..."
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse
+        
+        # Verify installation
+        $curlHeaderPath = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h"
+        $curlLibPath = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\lib\libcurl.lib"
+        
+        if (Test-Path $curlHeaderPath) {
+          Write-Host "✅ libcurl headers installed: $curlHeaderPath"
+        } else {
+          Write-Host "❌ libcurl headers missing: $curlHeaderPath"
+          exit 1
+        }
+        
+        if (Test-Path $curlLibPath) {
+          Write-Host "✅ libcurl library installed: $curlLibPath"
+        } else {
+          Write-Host "❌ libcurl library missing: $curlLibPath"
+          exit 1
+        }
+        
+        Write-Host "📂 Installed packages:"
+        .\vcpkg list
         
     - name: Build SystemMonitor
       run: |
@@ -107,46 +131,16 @@ jobs:
         Write-Host "  vcpkg: $env:VCPKG_ROOT"
         Write-Host "  Target: $env:VCPKG_TARGET"
         
-    - name: Build SystemMonitor
-      run: |
-        # Set environment variables for build script
-        $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
-        $env:VCPKG_TARGET="x64-windows-static"
-        $env:OUTPUT_DIR="bin"
-        
-        # Find Visual Studio installation using vswhere (more reliable)
-        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        if (Test-Path $vsWhere) {
-          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($vsPath) {
-            $env:VS_BUILD_TOOLS_PATH = $vsPath
-            Write-Host "✅ Found Visual Studio at: $vsPath"
-          }
+        # Verify libcurl installation before building
+        $curlHeaderPath = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h"
+        if (-not (Test-Path $curlHeaderPath)) {
+          Write-Host "❌ libcurl headers not found at: $curlHeaderPath"
+          Write-Host "📂 Checking vcpkg installation..."
+          Get-ChildItem "${{ env.VCPKG_ROOT }}\installed" -ErrorAction SilentlyContinue
+          exit 1
+        } else {
+          Write-Host "✅ libcurl headers found at: $curlHeaderPath"
         }
-        
-        # Fallback to manual search if vswhere fails
-        if (-not $env:VS_BUILD_TOOLS_PATH) {
-          $possiblePaths = @(
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
-            "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
-            "C:\Program Files\Microsoft Visual Studio\2022\Community",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise"
-          )
-          
-          foreach ($path in $possiblePaths) {
-            if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
-              $env:VS_BUILD_TOOLS_PATH = $path
-              Write-Host "✅ Found Visual Studio at: $path (fallback)"
-              break
-            }
-          }
-        }
-        
-        Write-Host "🔨 Building SystemMonitor with:"
-        Write-Host "  VS Path: $env:VS_BUILD_TOOLS_PATH"
-        Write-Host "  vcpkg: $env:VCPKG_ROOT"
-        Write-Host "  Target: $env:VCPKG_TARGET"
         
         # Use the original build script
         .\build.bat
@@ -232,7 +226,18 @@ jobs:
     - name: Install dependencies
       run: |
         cd ${{ env.VCPKG_ROOT }}
-        .\vcpkg install curl[ssl]:x64-windows-static
+        
+        # Install libcurl with SSL support for release
+        Write-Host "📦 Installing libcurl with SSL support for release..."
+        .\vcpkg install curl[ssl]:x64-windows-static --recurse
+        
+        # Verify installation
+        if (Test-Path "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h") {
+          Write-Host "✅ libcurl headers verified for release build"
+        } else {
+          Write-Host "❌ libcurl headers missing for release build"
+          exit 1
+        }
         
     - name: Build SystemMonitor for Release
       run: |

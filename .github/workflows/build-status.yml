@@ -154,10 +154,10 @@ jobs:
         name: SystemMonitor
         path: |
           bin/SystemMonitor.exe
-          config/*.cfg
           config/*.cfg.sample
           config/*.cfg.template
-          README.md.cfg
+          docs/*.*
+          README.md
         retention-days: 30
 
     - name: Build summary

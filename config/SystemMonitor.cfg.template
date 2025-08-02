@@ -1,0 +1,45 @@
+# SystemMonitor Configuration Template
+# Copy this file to SystemMonitor.cfg and customize for your environment
+
+# System Monitoring Thresholds (percentage)
+CPU_THRESHOLD=80
+RAM_THRESHOLD=80
+DISK_THRESHOLD=80
+MONITOR_INTERVAL=5000
+
+# Logging Configuration
+LOG_PATH=.\log\SystemMonitor.log
+DEBUG_MODE=false
+LOG_MAX_SIZE_MB=10
+LOG_MAX_BACKUPS=5
+LOG_ROTATION_ENABLED=true
+LOG_ROTATION_STRATEGY=SIZE_BASED
+LOG_DATE_FREQUENCY=DAILY
+LOG_DATE_FORMAT=%Y%m%d
+LOG_KEEP_DATE_IN_FILENAME=true
+
+# Display Configuration
+# Options: LINE_BY_LINE, TOP_STYLE, COMPACT, SILENCE
+DISPLAY_MODE=SILENCE
+
+# Email Alert Configuration
+EMAIL_ENABLED=true
+EMAIL_SMTP_SERVER=smtp.gmail.com
+EMAIL_SMTP_PORT=465
+
+# CONFIGURE THESE FOR YOUR ENVIRONMENT:
+EMAIL_SENDER=your-email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
+EMAIL_SENDER_NAME=SystemMonitor Alert System
+EMAIL_RECIPIENTS=admin@company.com,ops@company.com
+
+# Email Security
+EMAIL_USE_TLS=true
+EMAIL_USE_SSL=true
+EMAIL_TIMEOUT_SECONDS=30
+
+# Alert Timing
+EMAIL_ALERT_DURATION_SECONDS=10
+EMAIL_COOLDOWN_MINUTES=15
+EMAIL_SEND_RECOVERY_ALERTS=true
+EMAIL_RECOVERY_DURATION_SECONDS=30

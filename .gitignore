@@ -11,8 +11,7 @@ log/*.debug
 SystemMonitor_debug.log
 
 # Configuration files and folder (may contain sensitive data)
-config/
-*.cfg
+config/*.cfg
 
 # Visual Studio Code
 .vscode/

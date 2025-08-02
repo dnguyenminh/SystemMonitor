@@ -1,0 +1,81 @@
+CPU_THRESHOLD=20
+RAM_THRESHOLD=80
+DISK_THRESHOLD=80
+MONITOR_INTERVAL=1000
+LOG_PATH=log\SystemMonitor.log
+DEBUG_MODE=false
+LOG_MAX_SIZE_MB=10
+LOG_MAX_BACKUPS=3
+LOG_ROTATION_ENABLED=true
+LOG_ROTATION_STRATEGY=DATE_BASED
+LOG_DATE_FREQUENCY=DAILY
+LOG_DATE_FORMAT=%Y%m%d
+LOG_KEEP_DATE_IN_FILENAME=true
+DISPLAY_MODE=TOP_STYLE
+
+# Email Alert Configuration
+# Set EMAIL_ENABLED=true and configure the settings below to enable email alerts
+EMAIL_ENABLED=false
+
+# SMTP Server Configuration
+EMAIL_SMTP_SERVER=smtp.gmail.com
+EMAIL_SMTP_PORT=587
+
+# Sender Authentication
+EMAIL_SENDER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_SENDER_NAME=SystemMonitor
+
+# Recipients (comma-separated list)
+EMAIL_RECIPIENTS=operator1@company.com,operator2@company.com,sysadmin@company.com
+
+# Security Settings
+EMAIL_USE_TLS=true
+EMAIL_USE_SSL=false
+EMAIL_TIMEOUT_SECONDS=30
+
+# Alert Behavior
+EMAIL_ALERT_DURATION_SECONDS=300  # Send alert after 5 minutes of threshold violations
+EMAIL_COOLDOWN_MINUTES=60         # Wait 1 hour between alerts to prevent spam
+
+# Recovery Alerts (NEW FEATURE)
+EMAIL_SEND_RECOVERY_ALERTS=true          # Send "all clear" emails when problems resolve
+EMAIL_RECOVERY_DURATION_SECONDS=120     # Wait 2 minutes of normal operation before recovery email
+
+# Configuration Examples for Different Email Providers:
+#
+# Gmail:
+#   EMAIL_SMTP_SERVER=smtp.gmail.com
+#   EMAIL_SMTP_PORT=587
+#   EMAIL_USE_TLS=true
+#   Note: Requires App Password with 2FA enabled
+#
+# Outlook/Hotmail:
+#   EMAIL_SMTP_SERVER=smtp-mail.outlook.com
+#   EMAIL_SMTP_PORT=587
+#   EMAIL_USE_TLS=true
+#
+# Corporate Exchange:
+#   EMAIL_SMTP_SERVER=mail.yourcompany.com
+#   EMAIL_SMTP_PORT=587
+#   EMAIL_USE_TLS=true
+#
+# To enable email alerts:
+# 1. Set EMAIL_ENABLED=true
+# 2. Configure your SMTP server settings
+# 3. Set sender email and password
+# 4. Add recipient email addresses
+# 5. Adjust alert duration and cooldown as needed
+#
+# RECOVERY ALERTS FEATURE:
+# When EMAIL_SEND_RECOVERY_ALERTS=true, you'll receive two types of emails:
+# 1. "Problem Alert" - When thresholds are exceeded for EMAIL_ALERT_DURATION_SECONDS
+# 2. "Recovery Alert" - When system returns to normal for EMAIL_RECOVERY_DURATION_SECONDS
+#
+# Example Timeline:
+# Time 0:00 - CPU hits 85% (exceeds threshold)
+# Time 5:00 - Problem email sent (after 5-minute duration)
+# Time 8:00 - CPU drops to 15% (below threshold)  
+# Time 10:00 - Recovery email sent (after 2-minute normal operation)
+#
+# This provides complete incident lifecycle visibility!

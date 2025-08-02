@@ -1,0 +1,36 @@
+# SystemMonitor Configuration Sample
+# This file shows all available configuration options with their default values.
+# Copy this to config/SystemMonitor.cfg to customize your settings.
+
+# Monitoring Thresholds (percentage)
+cpu_threshold=80.0
+ram_threshold=80.0
+disk_threshold=80.0
+
+# Monitoring Interval (milliseconds)
+monitor_interval=5000
+
+# Display Mode (line, top, compact)
+display_mode=top
+
+# Debug Mode (true/false)
+debug_mode=false
+
+# Log File Path
+log_file=SystemMonitor.log
+
+# Log Rotation Settings
+log_rotation_enabled=true
+log_max_size_mb=10
+log_max_backups=5
+
+# Advanced Log Rotation
+log_strategy=SIZE_BASED
+log_frequency=DAILY
+log_date_format=%Y%m%d
+
+# Note: 
+# - Boolean values should be true/false
+# - Paths are relative to the application directory
+# - Log strategies: SIZE_BASED, DATE_BASED, COMBINED
+# - Log frequencies: DAILY, HOURLY, WEEKLY

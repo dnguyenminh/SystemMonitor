@@ -1,0 +1,4 @@
+# Trigger workflow - YAML syntax fix test
+# This file triggers a new workflow run to test the YAML syntax fix
+# Commit 16efa44 fixed the backtick issue in build-release.yml
+# Date: August 2, 2025

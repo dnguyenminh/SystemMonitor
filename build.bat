@@ -81,7 +81,7 @@ if not exist "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" (
 REM Check if Visual Studio environment is already configured (for CI/CD)
 if defined VCINSTALLDIR (
     echo Visual Studio x64 environment already configured
-    echo VCINSTALLDIR: %VCINSTALLDIR%
+    echo VCINSTALLDIR: "%VCINSTALLDIR%"
 ) else (
     echo Setting up Visual Studio x64 environment...
     call "%VS_BUILD_TOOLS_PATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1

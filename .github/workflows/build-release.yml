@@ -21,7 +21,7 @@ on:
 
 env:
   BUILD_TYPE: Release
-  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_ROOT: ${{ github.workspace }}\vcpkg
 
 jobs:
   # Continuous Integration - Build on every commit
@@ -51,9 +51,9 @@ jobs:
     - name: Setup vcpkg
       run: |
         if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
-          git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
+          git clone https://github.com/Microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
         }
-        cd ${{ env.VCPKG_ROOT }}
+        Set-Location "${{ env.VCPKG_ROOT }}"
         .\bootstrap-vcpkg.bat
         
         # Force integration and verify
@@ -70,7 +70,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd ${{ env.VCPKG_ROOT }}
+        Set-Location "${{ env.VCPKG_ROOT }}"
         
         # Debug vcpkg environment
         Write-Host "🔍 Debugging vcpkg installation..."
@@ -296,15 +296,15 @@ jobs:
     - name: Setup vcpkg
       run: |
         if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
-          git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
+          git clone https://github.com/Microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
         }
-        cd ${{ env.VCPKG_ROOT }}
+        Set-Location "${{ env.VCPKG_ROOT }}"
         .\bootstrap-vcpkg.bat
         .\vcpkg integrate install
 
     - name: Install dependencies
       run: |
-        cd ${{ env.VCPKG_ROOT }}
+        Set-Location "${{ env.VCPKG_ROOT }}"
         
         # Install libcurl with SSL support for release
         Write-Host "📦 Installing libcurl with SSL support for release..."

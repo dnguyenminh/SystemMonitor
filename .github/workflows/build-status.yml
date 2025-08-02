@@ -8,7 +8,7 @@ on:
   workflow_dispatch:  # This enables manual triggering
 
 env:
-  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_ROOT: ${{ github.workspace }}\vcpkg
 
 jobs:
   quick-build:
@@ -38,19 +38,19 @@ jobs:
       run: |
         if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
           Write-Host "Setting up fresh vcpkg installation..."
-          git clone https://github.com/Microsoft/vcpkg.git ${{ env.VCPKG_ROOT }}
-          cd ${{ env.VCPKG_ROOT }}
+          git clone https://github.com/Microsoft/vcpkg.git "${{ env.VCPKG_ROOT }}"
+          Set-Location "${{ env.VCPKG_ROOT }}"
           .\bootstrap-vcpkg.bat
           .\vcpkg integrate install
         } else {
           Write-Host "Using cached vcpkg installation"
-          cd ${{ env.VCPKG_ROOT }}
+          Set-Location "${{ env.VCPKG_ROOT }}"
           .\vcpkg integrate install
         }
 
     - name: Install dependencies
       run: |
-        cd ${{ env.VCPKG_ROOT }}
+        Set-Location "${{ env.VCPKG_ROOT }}"
         
         Write-Host "📦 Installing libcurl with SSL support..."
         .\vcpkg install curl[ssl]:x64-windows-static --recurse

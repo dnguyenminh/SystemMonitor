@@ -498,9 +498,5 @@ Built automatically by GitHub Actions from commit $env:GITHUB_SHA
       uses: actions/upload-artifact@v4
       with:
         name: SystemMonitor-Release.zip
-        path: |
-          ${{ env.RELEASE_FILE }}
-          config/
-          README.md
-          docs/
+        path: ${{ env.RELEASE_DIR }}
         retention-days: 90

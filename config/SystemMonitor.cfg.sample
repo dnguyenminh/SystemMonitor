@@ -26,8 +26,9 @@ log_max_backups=5
 
 # Advanced Log Rotation
 log_strategy=SIZE_BASED
-log_frequency=DAILY
-log_date_format=%Y%m%d
+# For DATE_BASED or COMBINED strategies only:
+# log_frequency=DAILY
+# log_date_format=%Y%m%d
 
 # Note: 
 # - Boolean values should be true/false

@@ -12,6 +12,10 @@ Add these settings to your `SystemMonitor.cfg` file:
 LOG_MAX_SIZE_MB=10           # Maximum log file size in MB (default: 10)
 LOG_MAX_BACKUPS=5            # Number of backup files to keep (default: 5)
 LOG_ROTATION_ENABLED=true    # Enable/disable log rotation (default: true)
+LOG_ROTATION_STRATEGY=SIZE_BASED  # SIZE_BASED, DATE_BASED, or COMBINED
+# For DATE_BASED or COMBINED only:
+# LOG_DATE_FREQUENCY=DAILY
+# LOG_DATE_FORMAT=%Y%m%d
 ```
 
 ## How It Works
@@ -48,6 +52,10 @@ For a production environment with frequent monitoring:
 LOG_MAX_SIZE_MB=5        # Smaller files for faster processing
 LOG_MAX_BACKUPS=10       # More backups for longer history
 LOG_ROTATION_ENABLED=true
+LOG_ROTATION_STRATEGY=SIZE_BASED
+# For DATE_BASED or COMBINED only:
+# LOG_DATE_FREQUENCY=DAILY
+# LOG_DATE_FORMAT=%Y%m%d
 ```
 
 For development or testing:

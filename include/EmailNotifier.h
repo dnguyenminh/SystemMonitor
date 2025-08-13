@@ -34,6 +34,10 @@ struct EmailConfig {
                !recipients.empty() &&
                !smtpServer.empty();
     }
+	// Email subjects
+	std::string subjectAlert = "SystemMonitor Alert: Resource Thresholds Exceeded";
+	std::string subjectRecover = "SystemMonitor Recovery: All Systems Normal";
+
 };
 
 // Email message structure

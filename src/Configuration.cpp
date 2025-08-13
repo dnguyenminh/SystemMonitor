@@ -175,7 +175,12 @@ bool ConfigurationManager::loadFromFile(const std::string& filename) {
         }
         // Email configuration
         else if (key == "EMAIL_ENABLED") {
-            config.getEmailConfig().enableEmailAlerts = (value == "true" || value == "1");
+            config.getEmailConfig().enableEmailAlerts = (value == "true" || value == "1");			
+
+        }else if (key == "EMAIL_SUBJECT_ALERT") {
+            config.getEmailConfig().subjectAlert = value;
+        }else if (key == "EMAIL_SUBJECT_RECOVER") {
+            config.getEmailConfig().subjectRecover = value;
         } else if (key == "EMAIL_SMTP_SERVER") {
             config.getEmailConfig().smtpServer = value;
         } else if (key == "EMAIL_SMTP_PORT") {

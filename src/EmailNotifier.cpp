@@ -1,3 +1,4 @@
+#include <condition_variable>
 #include "../include/EmailNotifier.h"
 #include <iostream>
 #include <sstream>
@@ -621,7 +622,9 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
         
         // Check if we should send an alert
         if (shouldSendAlert()) {
-            std::string subject = "SystemMonitor Alert: Resource Thresholds Exceeded";
+            //std::string subject = "SystemMonitor Alert: Resource Thresholds Exceeded";			
+			//std::string subject = config.get("EMAIL_SUBJECT_ALERT", "SystemMonitor Alert: Resource Thresholds Exceeded");
+			std::string subject = config.subjectAlert;
             std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
             
             EmailMessage alert(subject, body, config.recipients);
@@ -652,8 +655,10 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
         
         // Check if we should send a recovery alert
         if (shouldSendRecoveryAlert()) {
-            std::string subject = "SystemMonitor Recovery: All Systems Normal";
-            std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert, 
+            //std::string subject = "SystemMonitor Recovery: All Systems Normal";
+			//std::string subject = config.get("EMAIL_SUBJECT_RECORVER", "SystemMonitor Recovery: All Systems Normal");
+            std::string subject = config.subjectRecover;
+			std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert, 
                                                    alertHistory.logsDuringRecovery);
             
             EmailMessage recoveryAlert(subject, body, config.recipients);

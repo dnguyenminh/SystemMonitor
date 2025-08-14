@@ -498,6 +498,12 @@ std::string EmailNotifier::generateAlertEmail(const std::vector<std::string>& lo
         // Include all logs exactly as they appear in the console
         for (const auto& logEntry : logs) {
             body << logEntry << "\n";
+			// Add an extra newline if line contains "===" or "+"
+			if (logEntry.find("===") != std::string::npos || 
+				logEntry.find("+") != std::string::npos) 
+			{
+				body << "\n";
+			}
         }
         body << "\n";
     }
@@ -546,6 +552,12 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
         
         for (size_t i = startIndex; i < recoveryLogs.size(); ++i) {
             body << recoveryLogs[i] << "\n";
+			// Add an extra newline if line contains "===" or "+"
+			if (recoveryLogs[i].find("===") != std::string::npos || 
+				recoveryLogs[i].find("+") != std::string::npos) 
+			{
+				body << "\n";
+			}
         }
         body << "\n";
     }
@@ -559,6 +571,12 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
         size_t logsToShow = (alertLogs.size() < 15) ? alertLogs.size() : 15;
         for (size_t i = 0; i < logsToShow; ++i) {
             body << alertLogs[i] << "\n";
+			// Add an extra newline if line contains "===" or "+"
+			if (alertLogs[i].find("===") != std::string::npos || 
+				alertLogs[i].find("+") != std::string::npos) 
+			{
+				body << "\n";
+			}
         }
         
         if (alertLogs.size() > logsToShow) {
@@ -624,24 +642,8 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
             //std::string subject = "SystemMonitor Alert: Resource Thresholds Exceeded";			
 			//std::string subject = config.get("EMAIL_SUBJECT_ALERT", "SystemMonitor Alert: Resource Thresholds Exceeded");
 			std::string subject = config.subjectAlert;
-            //std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
-           
-            //EmailMessage alert(subject, body, config.recipients);
-            //queueEmail(alert);
-			 // Wrap your alert body in HTML
-			std::string htmlBody =
-				"<html><body><pre>" +
-				generateAlertEmail(alertHistory.logsDuringAlert) +
-				"</pre></body></html>";
-
-			// Add MIME headers so SMTP knows it's HTML
-			std::string fullBody =
-				"MIME-Version: 1.0\r\n"
-				"Content-Type: text/html; charset=UTF-8\r\n"
-				"\r\n" +
-				htmlBody;
-
-			EmailMessage alert(subject, fullBody, config.recipients);
+            std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
+			EmailMessage alert(subject, body, config.recipients);
 			queueEmail(alert);            
             alertHistory.alertSent = true;
             alertHistory.lastAlertSent = now;

@@ -497,12 +497,38 @@ std::string EmailNotifier::generateAlertEmail(const std::vector<std::string>& lo
         
         // Include all logs exactly as they appear in the console
         for (const auto& logEntry : logs) {
-            body << logEntry << "\n";
+			std::string entry = logEntry;
+            body << entry << "\n";
 			// Add an extra newline if line contains "===" or "+"
-			if (logEntry.find("===") != std::string::npos || 
-				logEntry.find("+") != std::string::npos) 
+			if (entry.find("===") != std::string::npos || 
+				entry.find("+") != std::string::npos) 
 			{
 				body << "\n";
+			}
+			// Break inline SYSTEM ANALYSIS into separate lines
+			size_t pos;
+			while ((pos = entry.find("SYSTEM ANALYSIS:")) != std::string::npos) {
+				// Replace "SYSTEM ANALYSIS:" with "\nSYSTEM ANALYSIS:"
+				entry.replace(pos, 0, "\n");
+				pos += 17; // move past the inserted newline
+			}
+
+			// Add newline before "TOTALS:" if it's stuck to the previous line
+			if ((pos = entry.find("TOTALS:")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
+			}
+
+			// Add newline before "SYSTEM OVERHEAD:" if needed
+			if ((pos = entry.find("SYSTEM OVERHEAD:")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
+			}
+
+			// Add newline before "===End" if needed
+			if ((pos = entry.find("===End")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
 			}
         }
         body << "\n";
@@ -551,12 +577,38 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
         size_t startIndex = (recoveryLogs.size() >= logsToShow) ? recoveryLogs.size() - logsToShow : 0;
         
         for (size_t i = startIndex; i < recoveryLogs.size(); ++i) {
-            body << recoveryLogs[i] << "\n";
+			std::string entry = recoveryLogs[i];
+            body << entry << "\n";
 			// Add an extra newline if line contains "===" or "+"
-			if (recoveryLogs[i].find("===") != std::string::npos || 
-				recoveryLogs[i].find("+") != std::string::npos) 
+			if (entry.find("===") != std::string::npos || 
+				entry.find("+") != std::string::npos) 
 			{
 				body << "\n";
+			}
+			// Break inline SYSTEM ANALYSIS into separate lines
+			size_t pos;
+			while ((pos = entry.find("SYSTEM ANALYSIS:")) != std::string::npos) {
+				// Replace "SYSTEM ANALYSIS:" with "\nSYSTEM ANALYSIS:"
+				entry.replace(pos, 0, "\n");
+				pos += 17; // move past the inserted newline
+			}
+
+			// Add newline before "TOTALS:" if it's stuck to the previous line
+			if ((pos = entry.find("TOTALS:")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
+			}
+
+			// Add newline before "SYSTEM OVERHEAD:" if needed
+			if ((pos = entry.find("SYSTEM OVERHEAD:")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
+			}
+
+			// Add newline before "===End" if needed
+			if ((pos = entry.find("===End")) != std::string::npos &&
+				pos != 0 && entry[pos - 1] != '\n') {
+				entry.replace(pos, 0, "\n");
 			}
         }
         body << "\n";
@@ -673,20 +725,8 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
             //std::string subject = "SystemMonitor Recovery: All Systems Normal";
 			//std::string subject = config.get("EMAIL_SUBJECT_RECORVER", "SystemMonitor Recovery: All Systems Normal");
             std::string subject = config.subjectRecover;
-			 // Wrap your alert body in HTML
-			std::string htmlBody =
-				"<html><body><pre>" +
-				generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery) +
-				"</pre></body></html>";
-
-			// Add MIME headers so SMTP knows it's HTML
-			std::string fullBody =
-				"MIME-Version: 1.0\r\n"
-				"Content-Type: text/html; charset=UTF-8\r\n"
-				"\r\n" +
-				htmlBody;
-			//std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery);            
-            EmailMessage recoveryAlert(subject, fullBody, config.recipients);
+			std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery);            
+            EmailMessage recoveryAlert(subject, body, config.recipients);
             queueEmail(recoveryAlert);
 			
             
@@ -697,10 +737,7 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
 }
 
 void EmailNotifier::sendImmediateAlert(const std::string& subject, const std::string& message) {
-    if (!isEnabled()) return;
-    std::string contentType = message.find("<html>") == 0 
-    ? "text/html; charset=UTF-8" 
-    : "text/plain; charset=UTF-8";
+    if (!isEnabled()) return;   
     EmailMessage alert(subject, message, config.recipients);
     queueEmail(alert);
 }

@@ -497,38 +497,15 @@ std::string EmailNotifier::generateAlertEmail(const std::vector<std::string>& lo
         
         // Include all logs exactly as they appear in the console
         for (const auto& logEntry : logs) {
-			std::string entry = logEntry;
-            body << entry << "\n";
+            body << logEntry << "\n";
 			// Add an extra newline if line contains "===" or "+"
-			if (entry.find("===") != std::string::npos || 
-				entry.find("+") != std::string::npos) 
+			if (logEntry.find("===Start") != std::string::npos ||
+				logEntry.find("SYSTEM ANALYSIS") != std::string::npos ||
+				logEntry.find("TOTALS:") != std::string::npos ||
+				logEntry.find("SYSTEM OVERHEAD:") != std::string::npos ||
+				logEntry.find("===End") != std::string::npos) 
 			{
-				body << "\n";
-			}
-			// Break inline SYSTEM ANALYSIS into separate lines
-			size_t pos;
-			while ((pos = entry.find("SYSTEM ANALYSIS:")) != std::string::npos) {
-				// Replace "SYSTEM ANALYSIS:" with "\nSYSTEM ANALYSIS:"
-				entry.replace(pos, 0, "\n");
-				pos += 17; // move past the inserted newline
-			}
-
-			// Add newline before "TOTALS:" if it's stuck to the previous line
-			if ((pos = entry.find("TOTALS:")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
-			}
-
-			// Add newline before "SYSTEM OVERHEAD:" if needed
-			if ((pos = entry.find("SYSTEM OVERHEAD:")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
-			}
-
-			// Add newline before "===End" if needed
-			if ((pos = entry.find("===End")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
+				body << "\n"; // Ensure new section starts on a fresh line
 			}
         }
         body << "\n";
@@ -577,38 +554,15 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
         size_t startIndex = (recoveryLogs.size() >= logsToShow) ? recoveryLogs.size() - logsToShow : 0;
         
         for (size_t i = startIndex; i < recoveryLogs.size(); ++i) {
-			std::string entry = recoveryLogs[i];
-            body << entry << "\n";
+            body << recoveryLogs[i] << "\n";
 			// Add an extra newline if line contains "===" or "+"
-			if (entry.find("===") != std::string::npos || 
-				entry.find("+") != std::string::npos) 
+			if (recoveryLogs[i].find("===Start") != std::string::npos ||
+				recoveryLogs[i].find("SYSTEM ANALYSIS") != std::string::npos ||
+				recoveryLogs[i].find("TOTALS:") != std::string::npos ||
+				recoveryLogs[i].find("SYSTEM OVERHEAD:") != std::string::npos ||
+				recoveryLogs[i].find("===End") != std::string::npos) 
 			{
-				body << "\n";
-			}
-			// Break inline SYSTEM ANALYSIS into separate lines
-			size_t pos;
-			while ((pos = entry.find("SYSTEM ANALYSIS:")) != std::string::npos) {
-				// Replace "SYSTEM ANALYSIS:" with "\nSYSTEM ANALYSIS:"
-				entry.replace(pos, 0, "\n");
-				pos += 17; // move past the inserted newline
-			}
-
-			// Add newline before "TOTALS:" if it's stuck to the previous line
-			if ((pos = entry.find("TOTALS:")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
-			}
-
-			// Add newline before "SYSTEM OVERHEAD:" if needed
-			if ((pos = entry.find("SYSTEM OVERHEAD:")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
-			}
-
-			// Add newline before "===End" if needed
-			if ((pos = entry.find("===End")) != std::string::npos &&
-				pos != 0 && entry[pos - 1] != '\n') {
-				entry.replace(pos, 0, "\n");
+				body << "\n"; // Ensure new section starts on a fresh line
 			}
         }
         body << "\n";
@@ -624,10 +578,13 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
         for (size_t i = 0; i < logsToShow; ++i) {
             body << alertLogs[i] << "\n";
 			// Add an extra newline if line contains "===" or "+"
-			if (alertLogs[i].find("===") != std::string::npos || 
-				alertLogs[i].find("+") != std::string::npos) 
+			if (alertLogs[i].find("===Start") != std::string::npos ||
+				alertLogs[i].find("SYSTEM ANALYSIS") != std::string::npos ||
+				alertLogs[i].find("TOTALS:") != std::string::npos ||
+				alertLogs[i].find("SYSTEM OVERHEAD:") != std::string::npos ||
+				alertLogs[i].find("===End") != std::string::npos) 
 			{
-				body << "\n";
+				body << "\n"; // Ensure new section starts on a fresh line
 			}
         }
         

@@ -633,7 +633,9 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
 			//std::string subject = config.get("EMAIL_SUBJECT_ALERT", "SystemMonitor Alert: Resource Thresholds Exceeded");
 			std::string subject = config.subjectAlert;
             std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
-            
+            std::string contentType = body.find("<html>") == 0 
+    ? "text/html; charset=UTF-8" 
+    : "text/plain; charset=UTF-8";
             EmailMessage alert(subject, body, config.recipients);
             queueEmail(alert);
             
@@ -667,6 +669,9 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
             std::string subject = config.subjectRecover;
 			std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert, 
                                                    alertHistory.logsDuringRecovery);
+			std::string contentType = body.find("<html>") == 0 
+    ? "text/html; charset=UTF-8" 
+    : "text/plain; charset=UTF-8";
             
             EmailMessage recoveryAlert(subject, body, config.recipients);
             queueEmail(recoveryAlert);
@@ -679,7 +684,9 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
 
 void EmailNotifier::sendImmediateAlert(const std::string& subject, const std::string& message) {
     if (!isEnabled()) return;
-    
+    std::string contentType = message.find("<html>") == 0 
+    ? "text/html; charset=UTF-8" 
+    : "text/plain; charset=UTF-8";
     EmailMessage alert(subject, message, config.recipients);
     queueEmail(alert);
 }

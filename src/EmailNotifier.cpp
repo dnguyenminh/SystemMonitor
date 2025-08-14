@@ -624,15 +624,25 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
             //std::string subject = "SystemMonitor Alert: Resource Thresholds Exceeded";			
 			//std::string subject = config.get("EMAIL_SUBJECT_ALERT", "SystemMonitor Alert: Resource Thresholds Exceeded");
 			std::string subject = config.subjectAlert;
-            std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
+            //std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
            
             //EmailMessage alert(subject, body, config.recipients);
             //queueEmail(alert);
-			EmailMessage alert(subject, "<html><body><pre>" + body + "</pre></body></html>", config.recipients);
-			alert.setContentType("text/html; charset=UTF-8");
-			queueEmail(alert);
+			 // Wrap your alert body in HTML
+			std::string htmlBody =
+				"<html><body><pre>" +
+				generateAlertEmail(alertHistory.logsDuringAlert) +
+				"</pre></body></html>";
 
-            
+			// Add MIME headers so SMTP knows it's HTML
+			std::string fullBody =
+				"MIME-Version: 1.0\r\n"
+				"Content-Type: text/html; charset=UTF-8\r\n"
+				"\r\n" +
+				htmlBody;
+
+			EmailMessage alert(subject, fullBody, config.recipients);
+			queueEmail(alert);            
             alertHistory.alertSent = true;
             alertHistory.lastAlertSent = now;
             alertHistory.waitingForRecovery = true; // Start watching for recovery
@@ -661,15 +671,22 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
             //std::string subject = "SystemMonitor Recovery: All Systems Normal";
 			//std::string subject = config.get("EMAIL_SUBJECT_RECORVER", "SystemMonitor Recovery: All Systems Normal");
             std::string subject = config.subjectRecover;
-			std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert, 
-                                                   alertHistory.logsDuringRecovery);		
-            
-            //EmailMessage recoveryAlert(subject, body, config.recipients);
-            //queueEmail(recoveryAlert);
-			EmailMessage alert(subject, "<html><body><pre>" + body + "</pre></body></html>", config.recipients);
-			alert.setContentType("text/html; charset=UTF-8");
-			queueEmail(alert);
+			 // Wrap your alert body in HTML
+			std::string htmlBody =
+				"<html><body><pre>" +
+				generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery) +
+				"</pre></body></html>";
 
+			// Add MIME headers so SMTP knows it's HTML
+			std::string fullBody =
+				"MIME-Version: 1.0\r\n"
+				"Content-Type: text/html; charset=UTF-8\r\n"
+				"\r\n" +
+				htmlBody;
+			//std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery);            
+            EmailMessage recoveryAlert(subject, fullBody, config.recipients);
+            queueEmail(recoveryAlert);
+			
             
             // Reset the alert history after sending recovery email
             alertHistory.reset();

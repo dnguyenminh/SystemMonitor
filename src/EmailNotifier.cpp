@@ -497,17 +497,27 @@ std::string EmailNotifier::generateAlertEmail(const std::vector<std::string>& lo
         
         // Include all logs exactly as they appear in the console
         for (const auto& logEntry : logs) {
-            body << logEntry << "\n";
-			// Add an extra newline if line contains "===" or "+"
-			if (logEntry.find("===Start") != std::string::npos ||
-				logEntry.find("SYSTEM ANALYSIS") != std::string::npos ||
-				logEntry.find("TOTALS:") != std::string::npos ||
-				logEntry.find("SYSTEM OVERHEAD:") != std::string::npos ||
-				logEntry.find("===End") != std::string::npos) 
-			{
-				body << "\n"; // Ensure new section starts on a fresh line
+			std::string modifiedLog = logEntry;
+			// Markers you want to break before
+			std::vector<std::string> markers = {
+				"SYSTEM ANALYSIS",
+				"===Start:",
+				"TOTALS:",
+				"SYSTEM OVERHEAD:",
+				"===End"
+			};
+
+			for (const auto& marker : markers) {
+				size_t pos = 0;
+				while ((pos = modifiedLog.find(marker, pos)) != std::string::npos) {
+					modifiedLog.insert(pos, "\n");  // insert newline before marker
+					pos += marker.size() + 1;       // move past inserted newline
+				}
 			}
-        }
+
+			body << modifiedLog << "\n";
+		}
+
         body << "\n";
     }
     

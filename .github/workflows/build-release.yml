@@ -313,23 +313,21 @@ jobs:
 # Visual C++ Redistributable 2022 (typically pre-installed)
 
 ## ⚙️ Configuration
-Edit config\SystemMonitor.cfg:
+Edit `config\SystemMonitor.cfg` to:
 - Set monitoring thresholds (CPU/RAM/Disk %)
 - Configure Gmail SMTP with App Password
 - Customize alert timing and cooldown periods
 
 ## 🔗 Support
-- GitHub: https://github.com/dnguyenminh/SystemMonitor
-- Documentation: See docs/ folder
-- Issues: Report via GitHub Issues
+- **GitHub**: https://github.com/dnguyenminh/SystemMonitor
+- **Documentation**: See `docs/` folder
+- **Issues**: Report via GitHub Issues
 
 ## 🏷️ Version Information
-- Version: $version
-- Build Date: $currentDate
-- Compiler: MSVC with static libcurl
-# Dependencies: Statically linked (self-contained)
-# End of deployment guide
-# End of here-string
+- **Version**: $version
+- **Build Date**: $currentDate
+- **Compiler**: MSVC with static libcurl
+- **Dependencies**: Statically linked (self-contained)
 '@
         $deploymentContent = $deploymentContent.Replace('$version', $version).Replace('$currentDate', $currentDate)
         $deploymentContent | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
@@ -370,7 +368,7 @@ Edit config\SystemMonitor.cfg:
 ### 🏗️ Build Information
 - Compiled: $currentDate
 - Compiler: Visual Studio 2022 (MSVC)
-- Dependencies: libcurl with TLS (statically linked)
+- Dependencies: Statically linked (self-contained)
 - Platform: Windows x64
 
 Built automatically by GitHub Actions from commit $env:GITHUB_SHA
@@ -378,7 +376,7 @@ Built automatically by GitHub Actions from commit $env:GITHUB_SHA
         $releaseNotes = $releaseNotes.Replace('$version', $version).Replace('$currentDate', $currentDate)
         $releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
         echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
-        $releaseNotes >> $env:GITHUB_ENV
+        echo "$releaseNotes" >> $env:GITHUB_ENV
         echo "EOF" >> $env:GITHUB_ENV
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1

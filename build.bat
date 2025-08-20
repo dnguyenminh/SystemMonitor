@@ -45,7 +45,7 @@ if not defined VCPKG_ROOT (
     echo Using environment vcpkg: "%VCPKG_ROOT%"
 )
 
-REM Target platform for vcpkg
+REM Target platform for vcpkg (force externals to static link)
 if not defined VCPKG_TARGET (
     set "VCPKG_TARGET=x64-windows-static"
 )
@@ -194,8 +194,8 @@ if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" (
 echo Debug: ✅ All required directories exist
 echo.
 
-REM Compile with libcurl TLS support (STATIC LINKING)
-"%CL_PATH%" /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
+REM Compile with libcurl TLS support (STATIC externals, dynamic system/CRT)
+"%CL_PATH%" /EHsc /std:c++17 /MD /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    main.cpp ^
    src/SystemMetrics.cpp ^
    src/ProcessManager.cpp ^
@@ -207,15 +207,8 @@ REM Compile with libcurl TLS support (STATIC LINKING)
    /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" ^
    /link /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" ^
    libcurl.lib zlib.lib ^
-   ws2_32.lib ^
-   wldap32.lib ^
-   advapi32.lib ^
-   crypt32.lib ^
-   normaliz.lib ^
-   user32.lib ^
-   kernel32.lib ^
-   iphlpapi.lib ^
-   secur32.lib ^
+   ws2_32.lib wldap32.lib advapi32.lib crypt32.lib normaliz.lib ^
+   user32.lib kernel32.lib iphlpapi.lib secur32.lib ^
    /OUT:"%OUTPUT_DIR%\%EXE_NAME%" /machine:x64
 
 if %ERRORLEVEL% NEQ 0 (

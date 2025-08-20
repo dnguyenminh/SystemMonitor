@@ -114,7 +114,7 @@ jobs:
           Write-Host "✅ libcurl headers found!"
         }
 
-        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
         cmake --build build --config Release
 
     - name: Verify build output

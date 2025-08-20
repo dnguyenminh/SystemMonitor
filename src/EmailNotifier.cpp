@@ -69,7 +69,12 @@ bool sendEmailWithLibcurl(const EmailMessage& message, const EmailConfig& config
     emailContent << "\r\n";
     emailContent << "From: " << config.senderName << " <" << config.senderEmail << ">\r\n";
     emailContent << "Subject: " << message.subject << "\r\n";
-    emailContent << "Content-Type: text/plain; charset=UTF-8\r\n";
+    if (message.isHtml) {
+        emailContent << "Content-Type: text/html; charset=UTF-8\r\n";
+    } else {
+        emailContent << "Content-Type: text/plain; charset=UTF-8\r\n";
+    }
+    
     emailContent << "\r\n";
     emailContent << message.body << "\r\n";
     
@@ -309,8 +314,12 @@ bool WindowsEmailSender::sendEmail(const EmailMessage& message, const EmailConfi
         emailContent << message.recipients[i];
     }
     emailContent << "\r\n";
-    emailContent << "Subject: " << message.subject << "\r\n";
-    emailContent << "Content-Type: text/plain; charset=UTF-8\r\n";
+    emailContent << "Subject: " << message.subject << "\r\n";    
+     if (message.isHtml) {
+        emailContent << "Content-Type: text/html; charset=UTF-8\r\n";
+    } else {
+        emailContent << "Content-Type: text/plain; charset=UTF-8\r\n";
+    }
     emailContent << "\r\n";
     emailContent << message.body << "\r\n";
     emailContent << ".\r\n";
@@ -477,59 +486,57 @@ std::string EmailNotifier::generateAlertEmail(const std::vector<std::string>& lo
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);   
 	
-    body << "SYSTEM MONITOR ALERT\n";
-    body << "====================\n\n";
-    body << "Alert Generated: " << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") << "\n";
-    body << "Alert Duration: " << config.alertDurationSeconds << " seconds\n";
-    body << "Threshold Monitoring Period: " << logs.size() << " log entries\n\n";
+	body << "<html><body>";
+    body << "<h2 style='color:red;'>⚠️ SystemMonitor Alert: Resource Thresholds Exceeded</h2>";
+    body << "<p>The following log entries triggered the alert:</p>";
+    body << "<ul>";
+    body << "SYSTEM MONITOR ALERT<br>";
+    body << "====================<br><br>";
+    body << "Alert Generated: " << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") << "<br>";
+    body << "Alert Duration: " << config.alertDurationSeconds << " seconds<br>";
+    body << "Threshold Monitoring Period: " << logs.size() << " log entries<br><br>";
     
-    body << "SYSTEM RESOURCE THRESHOLDS EXCEEDED:\n";
-    body << "- CPU Threshold: " << config.alertDurationSeconds << " seconds of monitoring\n";
-    body << "- RAM/Disk activity detected above normal levels\n\n";
+    body << "SYSTEM RESOURCE THRESHOLDS EXCEEDED:<br>";
+    body << "- CPU Threshold: " << config.alertDurationSeconds << " seconds of monitoring<br>";
+    body << "- RAM/Disk activity detected above normal levels<br><br>";
     
-    body << "DETAILED LOG ANALYSIS\n";
-    body << "=======================\n";
+    body << "DETAILED LOG ANALYSIS<br>";
+    body << "=======================<br>";
     
     if (logs.empty()) {
-        body << "No detailed logs available for this alert period.\n\n";
+        body << "No detailed logs available for this alert period.<br><br>";
     } else {
-        body << "Complete system monitoring logs during alert period:\n\n";
+        body << "Complete system monitoring logs during alert period:<br><br>";
         
         // Include all logs exactly as they appear in the console
         for (const auto& logEntry : logs) {
-			std::string modifiedLog = logEntry;
-			// Markers you want to break before
-			std::vector<std::string> markers = {
-				"SYSTEM ANALYSIS",
-				"===Start:",
-				"TOTALS:",
-				"SYSTEM OVERHEAD:",
-				"===End"
-			};
-
-			for (const auto& marker : markers) {
-				size_t pos = 0;
-				while ((pos = modifiedLog.find(marker, pos)) != std::string::npos) {
-					modifiedLog.insert(pos, "\n");  // insert newline before marker
-					pos += marker.size() + 1;       // move past inserted newline
-				}
+			//std::string modifiedLog = logEntry;
+			 body << "<li><pre>" << logEntry << "</pre></li>";
+             if (logEntry.find("===End") != std::string::npos) 
+			{
+				body << "<br>"; // Ensure new section starts on a fresh line
 			}
-
-			body << modifiedLog << "\n";
+			
 		}
 
-        body << "\n";
+        body << "<br>";
     }
     
-    body << "RECOMMENDATIONS\n";
-    body << "================\n";
-    body << "1. Check for resource-intensive processes\n";
-    body << "2. Monitor disk I/O activity\n";
-    body << "3. Verify system memory usage patterns\n";
-    body << "4. Consider scaling resources if this is a recurring issue\n\n";
+    body << "RECOMMENDATIONS<br>";
+    body << "================<br>";
+    body << "1. Check for resource-intensive processes<br>";
+    body << "2. Monitor disk I/O activity<br>";
+    body << "3. Verify system memory usage patterns<br>";
+    body << "4. Consider scaling resources if this is a recurring issue<br><br>";
     
-    body << "This alert was automatically generated by SystemMonitor.\n";
-    body << "Next alert will be suppressed for " << config.cooldownMinutes << " minutes.\n";   
+    body << "This alert was automatically generated by SystemMonitor.<br>";
+    body << "Next alert will be suppressed for " << config.cooldownMinutes << " minutes.<br>";
+	body << "</ul>";
+    body << "<br><br>";
+    body << "Thanks,";
+    body << "<br>";
+    body << "IT of App Risk Team";
+    body << "</body></html>";
     return body.str();
 }
 
@@ -538,81 +545,81 @@ std::string EmailNotifier::generateRecoveryEmail(const std::vector<std::string>&
     std::ostringstream body;
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);   
+    body << "<html><body>";
+    body << "<h2 style='color:blue;'>⚠️ SystemMonitor Recovery: All Systems Normal</h2>";
+    body << "<p>The following log entries triggered the alert:</p>";
+    body << "<ul>";
 	
-    body << "SYSTEM MONITOR RECOVERY ALERT\n";
-    body << "==============================\n\n";
-    body << "Recovery Detected: " << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") << "\n";
-    body << "Recovery Duration: " << config.recoveryDurationSeconds << " seconds below thresholds\n";
-    body << "Original Alert Period: " << alertLogs.size() << " log entries\n";
-    body << "Recovery Period: " << recoveryLogs.size() << " log entries\n\n";
+    body << "SYSTEM MONITOR RECOVERY ALERT<br>";
+    body << "==============================<br><br>";
+    body << "Recovery Detected: " << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") << "<br>";
+    body << "Recovery Duration: " << config.recoveryDurationSeconds << " seconds below thresholds<br>";
+    body << "Original Alert Period: " << alertLogs.size() << " log entries<br>";
+    body << "Recovery Period: " << recoveryLogs.size() << " log entries<br><br>";
     
-    body << "SYSTEM STATUS: ALL CLEAR\n";
-    body << "=========================\n";
-    body << "✅ All system resources have returned to normal levels\n";
-    body << "✅ Thresholds no longer exceeded\n";
-    body << "✅ System performance stabilized\n\n";
+    body << "SYSTEM STATUS: ALL CLEAR<br>";
+    body << "=========================<br>";
+    body << "✅ All system resources have returned to normal levels<br>";
+    body << "✅ Thresholds no longer exceeded<br>";
+    body << "✅ System performance stabilized<br><br>";
     
-    body << "RECOVERY SYSTEM ANALYSIS\n";
-    body << "========================\n";
+    body << "RECOVERY SYSTEM ANALYSIS<br>";
+    body << "========================<br>";
     
     if (recoveryLogs.empty()) {
-        body << "No detailed recovery logs available.\n\n";
+        body << "No detailed recovery logs available.<br><br>";
     } else {
-        body << "Recent system state showing normal operation:\n\n";
+        body << "Recent system state showing normal operation:<br><br>";
         // Show recent recovery logs to demonstrate normal state
         size_t logsToShow = (recoveryLogs.size() < 10) ? recoveryLogs.size() : 10;
         size_t startIndex = (recoveryLogs.size() >= logsToShow) ? recoveryLogs.size() - logsToShow : 0;
         
-        for (size_t i = startIndex; i < recoveryLogs.size(); ++i) {
-            body << recoveryLogs[i] << "\n";
-			// Add an extra newline if line contains "===" or "+"
-			if (recoveryLogs[i].find("===Start") != std::string::npos ||
-				recoveryLogs[i].find("SYSTEM ANALYSIS") != std::string::npos ||
-				recoveryLogs[i].find("TOTALS:") != std::string::npos ||
-				recoveryLogs[i].find("SYSTEM OVERHEAD:") != std::string::npos ||
-				recoveryLogs[i].find("===End") != std::string::npos) 
+        for (size_t i = startIndex; i < recoveryLogs.size(); ++i) {            		
+             body << "<li><pre>" << recoveryLogs[i] << "</pre></li>";
+             if (recoveryLogs[i].find("===End") != std::string::npos) 
 			{
-				body << "\n"; // Ensure new section starts on a fresh line
+				body << "<br>"; // Ensure new section starts on a fresh line
 			}
         }
-        body << "\n";
+        body << "<br>";
     }
     
     if (!alertLogs.empty()) {
-        body << "ORIGINAL ALERT SYSTEM ANALYSIS\n";
-        body << "===============================\n";
-        body << "For reference, the original alert was triggered by:\n\n";
+        body << "ORIGINAL ALERT SYSTEM ANALYSIS<br>";
+        body << "===============================<br>";
+        body << "For reference, the original alert was triggered by:<br><br>";
         
         // Show first portion of alert logs for context
         size_t logsToShow = (alertLogs.size() < 15) ? alertLogs.size() : 15;
         for (size_t i = 0; i < logsToShow; ++i) {
-            body << alertLogs[i] << "\n";
-			// Add an extra newline if line contains "===" or "+"
-			if (alertLogs[i].find("===Start") != std::string::npos ||
-				alertLogs[i].find("SYSTEM ANALYSIS") != std::string::npos ||
-				alertLogs[i].find("TOTALS:") != std::string::npos ||
-				alertLogs[i].find("SYSTEM OVERHEAD:") != std::string::npos ||
-				alertLogs[i].find("===End") != std::string::npos) 
+            body << "<li><pre>" << alertLogs[i] << "</pre></li>";
+            if (alertLogs[i].find("===End") != std::string::npos) 
 			{
-				body << "\n"; // Ensure new section starts on a fresh line
-			}
+				body << "<br>"; // Ensure new section starts on a fresh line
+			}           
         }
         
         if (alertLogs.size() > logsToShow) {
-            body << "\n... (" << (alertLogs.size() - logsToShow) << " additional alert log entries) ...\n";
+            body << "<br>... (" << (alertLogs.size() - logsToShow) << " additional alert log entries) ...<br>";
         }
-        body << "\n";
+        body << "<br>";
     }
     
-    body << "NEXT STEPS\n";
-    body << "===========\n";
-    body << "1. ✅ System monitoring continues normally\n";
-    body << "2. ✅ Performance issue appears resolved\n";
-    body << "3. 📊 Review logs to understand what caused the original issue\n";
-    body << "4. 🔧 Consider preventive measures if this was a recurring problem\n\n";
+    body << "NEXT STEPS<br>";
+    body << "===========<br>";
+    body << "1. ✅ System monitoring continues normally<br>";
+    body << "2. ✅ Performance issue appears resolved<br>";
+    body << "3. 📊 Review logs to understand what caused the original issue<br>";
+    body << "4. 🔧 Consider preventive measures if this was a recurring problem<br><br>";
     
-    body << "This recovery alert was automatically generated by SystemMonitor.\n";
-    body << "Normal monitoring and alerting will resume.\n";	
+    body << "This recovery alert was automatically generated by SystemMonitor.<br>";
+    body << "Normal monitoring and alerting will resume.<br>";	
+    body << "</ul>";
+     body << "<br><br>";
+    body << "Thanks,";
+    body << "<br>";
+    body << "IT of App Risk Team";
+    body << "</body></html>";
     
     return body.str();
 }
@@ -662,7 +669,7 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
 			//std::string subject = config.get("EMAIL_SUBJECT_ALERT", "SystemMonitor Alert: Resource Thresholds Exceeded");
 			std::string subject = config.subjectAlert;
             std::string body = generateAlertEmail(alertHistory.logsDuringAlert);
-			EmailMessage alert(subject, body, config.recipients);
+			EmailMessage alert(subject, body, config.recipients,true);
 			queueEmail(alert);            
             alertHistory.alertSent = true;
             alertHistory.lastAlertSent = now;
@@ -693,7 +700,7 @@ void EmailNotifier::checkThresholds(bool thresholdsExceeded, const std::string& 
 			//std::string subject = config.get("EMAIL_SUBJECT_RECORVER", "SystemMonitor Recovery: All Systems Normal");
             std::string subject = config.subjectRecover;
 			std::string body = generateRecoveryEmail(alertHistory.logsDuringAlert,alertHistory.logsDuringRecovery);            
-            EmailMessage recoveryAlert(subject, body, config.recipients);
+            EmailMessage recoveryAlert(subject, body, config.recipients, true);
             queueEmail(recoveryAlert);
 			
             
@@ -711,7 +718,7 @@ void EmailNotifier::sendImmediateAlert(const std::string& subject, const std::st
 
 bool EmailNotifier::testEmailConfiguration() {
     if (!config.isValid()) {
-        std::cerr << "Email configuration is invalid\n";
+        std::cerr << "Email configuration is invalid<br>";
         return false;
     }
     

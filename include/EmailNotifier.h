@@ -46,11 +46,12 @@ struct EmailMessage {
     std::string body;
     std::vector<std::string> recipients;
     std::chrono::system_clock::time_point timestamp;
+    bool isHtml;
     
     EmailMessage(const std::string& subj, const std::string& content, 
-                 const std::vector<std::string>& recips)
+                 const std::vector<std::string>& recips, bool html = false)
         : subject(subj), body(content), recipients(recips), 
-          timestamp(std::chrono::system_clock::now()) {}
+          timestamp(std::chrono::system_clock::now()), isHtml(html) {}
 };
 
 // Abstract email sender interface

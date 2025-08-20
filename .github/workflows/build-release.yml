@@ -47,6 +47,7 @@ jobs:
         Write-Host "Restoring VCPKG_ROOT to: $originalVcpkgRoot"
         echo "VCPKG_ROOT=$originalVcpkgRoot" >> $env:GITHUB_ENV
 
+    # vcpkg_installed/ is ignored by git and not cached/uploaded
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:

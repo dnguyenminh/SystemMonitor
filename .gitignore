@@ -39,3 +39,6 @@ build/
 # Sensitive configuration files
 config/SystemMonitor.cfg
 !config/SystemMonitor.cfg.template
+
+# vcpkg artifacts
+vcpkg_installed/

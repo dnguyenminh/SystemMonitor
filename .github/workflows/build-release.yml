@@ -106,70 +106,12 @@ jobs:
         .\vcpkg list --classic
     - name: Build SystemMonitor
       run: |
+        Write-Host "🔨 Building SystemMonitor with CMake..."
         $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
-        Write-Host "🔧 Setting up build environment:"
-        Write-Host "  Original VCPKG_ROOT: ${{ env.VCPKG_ROOT }}"
-        Write-Host "  Normalized VCPKG_ROOT: $vcpkgRoot"
-        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        $vsPath = ""
-        if (Test-Path $vsWhere) {
-          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($vsPath) {
-            Write-Host "✅ Found Visual Studio at: $vsPath"
-          }
-        }
-        if (-not $vsPath) {
-          $possiblePaths = @(
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
-            "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
-            "C:\Program Files\Microsoft Visual Studio\2022\Community",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise"
-          )
-          foreach ($path in $possiblePaths) {
-            if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
-              $vsPath = $path
-              Write-Host "✅ Found Visual Studio at: $path (fallback)"
-              break
-            }
-          }
-        }
-        $curlHeaderPath = "$vcpkgRoot\installed\x64-windows-static\include\curl\curl.h"
-        if (Test-Path $curlHeaderPath) {
-          Write-Host "✅ Final verification: libcurl headers found at $curlHeaderPath"
-        } else {
-          Write-Host "❌ Final verification: libcurl headers missing at $curlHeaderPath"
-          exit 1
-        }
-        Write-Host "🔨 Building SystemMonitor with:"
-        Write-Host "  VS Path: $vsPath"
-        Write-Host "  vcpkg: $vcpkgRoot"
-        Write-Host "  Target: x64-windows-static"
-        $buildCommands = @(
-          "@echo off",
-          "set ""VCPKG_ROOT=$vcpkgRoot""",
-          "set ""VCPKG_TARGET=x64-windows-static""",
-          "set ""OUTPUT_DIR=bin"""
-        )
-        if ($vsPath) {
-          $buildCommands += "set ""VS_BUILD_TOOLS_PATH=$vsPath"""
-        }
-        $buildCommands += @(
-          "echo Environment variables set:",
-          "echo   VCPKG_ROOT=%VCPKG_ROOT%",
-          "echo   VCPKG_TARGET=%VCPKG_TARGET%",
-          "echo   OUTPUT_DIR=%OUTPUT_DIR%"
-        )
-        if ($vsPath) {
-          $buildCommands += "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%"
-        }
-        $buildCommands += @(
-          "echo.",
-          "call build.bat"
-        )
-        $buildCommands | Out-File -FilePath "build-temp.bat" -Encoding ASCII
-        & .\build-temp.bat
-        Remove-Item "build-temp.bat" -ErrorAction SilentlyContinue
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $toolchainFile = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
         if (-not (Test-Path "bin\SystemMonitor.exe")) {
           Write-Host "❌ Build failed - SystemMonitor.exe not found"
           exit 1

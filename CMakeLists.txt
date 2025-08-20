@@ -9,11 +9,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 
-set(CURL_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows-static/include")
-set(CURL_LIBRARY "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows-static/lib/libcurl.lib")
 find_package(CURL REQUIRED)
-include_directories(${CURL_INCLUDE_DIR})
-link_directories("${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/lib")
+include_directories(${CURL_INCLUDE_DIRS})
 
 # Source files
 file(GLOB SRC_FILES src/*.cpp)

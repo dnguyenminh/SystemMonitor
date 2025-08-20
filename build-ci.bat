@@ -1,6 +1,6 @@
 @echo off
 REM SystemMonitor Build Script for CI/CD
-REM Simplified version for GitHub Actions environment
+REM Updated: Static externals, dynamic CRT/system
 
 echo ====================================================
 echo  SystemMonitor CI/CD Build Script
@@ -71,9 +71,10 @@ echo.
 echo Compiling SystemMonitor with libcurl TLS integration...
 echo.
 
-REM Compile with libcurl TLS support (STATIC LINKING)
-REM Note: In CI/CD, the Visual Studio environment is already set up
-cl /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
+REM Compile with libcurl TLS support
+REM - /MD = dynamic CRT
+REM - VCPKG_TARGET=x64-windows-static ensures externals are static
+cl /EHsc /std:c++17 /MD /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    main.cpp ^
    src/SystemMetrics.cpp ^
    src/ProcessManager.cpp ^

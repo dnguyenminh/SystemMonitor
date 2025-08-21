@@ -46,7 +46,7 @@ Edit `config\SystemMonitor.cfg` to:
 $deploymentContent = $deploymentContent.Replace('$version', $version).Replace('$currentDate', $currentDate)
 $deploymentContent | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
 
-Compress-Archive -Path "bin", "docs", "README.md" -DestinationPath "SystemMonitor-$version.zip" -Force
+Compress-Archive -Path "$releaseDir\*" -DestinationPath "SystemMonitor-$version.zip" -Force
 
 echo "RELEASE_FILE=SystemMonitor-$version.zip" >> $env:GITHUB_ENV
 echo "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV

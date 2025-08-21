@@ -236,15 +236,10 @@ jobs:
         # Gọi tệp PowerShell riêng
         .\generate-release.ps1 -version $version -releaseDir $releaseDir
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ env.RELEASE_FILE }}
-        name: SystemMonitor ${{ env.VERSION }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create ${{ env.VERSION }} --generate-notes ${{ env.RELEASE_FILE }}
     - name: Upload Release Artifact
       uses: actions/upload-artifact@v4
       with:

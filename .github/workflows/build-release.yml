@@ -221,7 +221,8 @@ jobs:
         New-Item -ItemType Directory -Path $releaseDir -Force
         New-Item -ItemType Directory -Path "$releaseDir\config" -Force
         New-Item -ItemType Directory -Path "$releaseDir\docs" -Force
-        Copy-Item "bin\SystemMonitor.exe" "$releaseDir\"
+        New-Item -ItemType Directory -Path "$releaseDir\bin" -Force
+        Copy-Item "bin\SystemMonitor.exe" "$releaseDir\bin\"
         if (Test-Path "config\SystemMonitor.cfg.template") {
           Copy-Item "config\SystemMonitor.cfg.template" "$releaseDir\config\"
         }

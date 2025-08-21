@@ -52,44 +52,4 @@ echo "RELEASE_FILE=SystemMonitor-$version.zip" >> $env:GITHUB_ENV
 echo "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV
 echo "VERSION=$version" >> $env:GITHUB_ENV
 
-$releaseNotes = @'
-## SystemMonitor $version
 
-### 🎯 What's New
-- Enterprise-grade system monitoring with TLS email alerts
-- Static linking for easy deployment (no dependencies)
-- Multiple display modes for different use cases
-- Configurable thresholds and smart alerting
-
-### 📦 Deployment
-- Self-contained: No vcpkg or external libraries needed
-- Production ready: Suitable for server monitoring
-- Easy setup: Extract, configure, and run
-
-### 🔧 Features
-- Real-time monitoring: CPU, RAM, Disk usage
-- Email notifications: TLS-encrypted Gmail SMTP
-- Silent operation: Perfect for background monitoring
-- Professional logging: Rotation and debug support
-
-### 📥 Installation
-1. Download SystemMonitor-$version.zip
-2. Extract to your target directory
-3. Configure config/SystemMonitor.cfg
-4. Run: SystemMonitor.exe --display silence
-
-### 🏗️ Build Information
-- Compiled: $currentDate
-- Compiler: Visual Studio 2022 (MSVC)
-- Dependencies: Statically linked (self-contained)
-- Platform: Windows x64
-
-Built automatically by GitHub Actions from commit $env:GITHUB_SHA
-'@
-
-$releaseNotes = $releaseNotes.Replace('$version', $version).Replace('$currentDate', $currentDate)
-$releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
-
-echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
-echo "$releaseNotes" >> $env:GITHUB_ENV
-echo "EOF" >> $env:GITHUB_ENV

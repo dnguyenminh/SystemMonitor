@@ -238,6 +238,8 @@ jobs:
         }
         # Gọi tệp PowerShell riêng
         .\generate-release.ps1 -version $version -releaseDir $releaseDir
+        echo "VERSION=$version" >> $env:GITHUB_ENV
+        echo "RELEASE_FILE=SystemMonitor-$version.zip" >> $env:GITHUB_ENV
     - name: Create GitHub Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

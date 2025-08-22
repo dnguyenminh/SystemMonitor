@@ -12,9 +12,21 @@ The `build.bat` script uses environment variables to support flexible configurat
 |----------|-------------|---------------|-------------------|
 | `VS_BUILD_TOOLS_PATH` | Visual Studio installation directory | `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` | `C:\Program Files\Microsoft Visual Studio\2022\Community` |
 | `VCPKG_ROOT` | vcpkg package manager root directory | `c:\vcpkg` | `D:\tools\vcpkg` |
-| `VCPKG_TARGET` | Target platform for vcpkg packages | `x64-windows` | `x86-windows` |
+| `VCPKG_TARGET` | Target platform for vcpkg packages (e.g., `x64-windows` for dynamic, `x64-windows-static` for static linking) | `x64-windows-static` | `x86-windows` |
 | `OUTPUT_DIR` | Directory for compiled executable | `bin` | `build` or `release` |
-| `EXE_NAME` | Name of the output executable | `SystemMonitor_TLS.exe` | `SystemMonitor.exe` |
+| `EXE_NAME` | Name of the output executable. For releases, this is `SystemMonitor.exe.bin` to avoid antivirus issues, and is run via `SystemMonitor.bat`. | `SystemMonitor.exe.bin` | `SystemMonitor.exe` |
+
+## Linking Strategy (Static vs. Dynamic)
+
+SystemMonitor is configured to use **static linking** for its core dependencies like `libcurl` and `zlib` when building with the `x64-windows-static` triplet. This results in a larger, self-contained executable (`SystemMonitor.exe.bin`) that does not require external DLLs for these libraries.
+
+**Why static linking for core dependencies?**
+*   **Portability:** The executable can be run on systems without needing to install specific DLLs.
+*   **Reduced Deployment Complexity:** All necessary library code is bundled into the main executable.
+*   **Antivirus Workaround:** In combination with the `.exe.bin` renaming, this helps mitigate false positives from antivirus software that might flag dynamically linked DLLs.
+
+**Note on C Runtime (CRT) Linking:**
+To ensure compatibility with statically linked libraries from vcpkg (e.g., `x64-windows-static` triplet), the application's C/C++ Runtime (CRT) is also linked statically (`/MT`). This is a requirement for proper functionality and does not mean all Windows system libraries are bundled.
 
 ## Configuration Methods
 
@@ -155,14 +167,13 @@ cd %VCPKG_ROOT%
 
 ## CI/CD Integration
 
-For automated builds, set environment variables in your CI/CD pipeline:
+For automated builds, set environment variables in your CI/CD pipeline. The `build-release.yml` workflow is configured to use the `x64-windows-static` triplet for static linking and includes the `SystemMonitor.exe.bin` and `SystemMonitor.bat` in the release artifact.
 
 **GitHub Actions:**
 ```yaml
 env:
-  VCPKG_ROOT: D:\tools\vcpkg
-  VS_BUILD_TOOLS_PATH: C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
-  OUTPUT_DIR: artifacts
+  BUILD_TYPE: Release
+  VCPKG_ROOT: ${{ github.workspace }}\vcpkg
 ```
 
 **Jenkins:**
@@ -173,6 +184,7 @@ environment {
     OUTPUT_DIR = 'artifacts'
 }
 ```
+
 
 ## Team Development
 

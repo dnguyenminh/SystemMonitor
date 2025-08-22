@@ -10,6 +10,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 
 find_package(CURL REQUIRED)
+
 include_directories(${CURL_INCLUDE_DIRS})
 
 # Source files
@@ -28,7 +29,6 @@ set_target_properties(SystemMonitor PROPERTIES
 )
 
 # Link with static libcurl and required system libraries
-set(ZLIB_LIBRARY "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows-static/lib/zlib.lib")
 target_link_libraries(SystemMonitor PRIVATE CURL::libcurl ZLIB::ZLIB advapi32 ws2_32 crypt32 Secur32 IPHLPAPI)
 target_compile_definitions(SystemMonitor PRIVATE CURL_STATICLIB)
 

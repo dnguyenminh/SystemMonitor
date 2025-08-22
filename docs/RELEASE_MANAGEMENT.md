@@ -64,7 +64,8 @@ git push origin v1.1.0
 Each release contains:
 ```
 SystemMonitor-v1.0.0/
-├── SystemMonitor.exe              # Main executable (static linked)
+├── SystemMonitor.exe.bin          # Main executable (static linked, renamed for Defender workaround)
+├── SystemMonitor.bat              # Batch file to run the executable (Defender workaround)
 ├── config/
 │   └── SystemMonitor.cfg.template # Configuration template
 ├── docs/                          # Documentation

@@ -11,6 +11,26 @@ A professional C++ Windows system monitoring application with real-time process 
 
 ...
 
+## How to Run
+
+The main executable is `SystemMonitor.exe.bin`. To run it, you should use the provided `SystemMonitor.bat` script. This script handles renaming the executable and launching it.
+
+1.  Download the release package from the [releases page](https://github.com/dnguyenminh/SystemMonitor/releases).
+2.  Extract the contents of the ZIP file to a folder on your computer.
+3.  Navigate to the extracted folder.
+4.  Run `SystemMonitor.bat`.
+
+    **Note:** If Windows Defender or other antivirus software flags the downloaded ZIP or its contents, this is likely a false positive due to the executable being unsigned and downloaded from the internet. The `.bat` file workaround is designed to help with this. You may still need to manually "unblock" the ZIP file in its properties after downloading, or add an exclusion to your antivirus.
+
+## How to Build
+
+To build SystemMonitor from source, you will need:
+*   Visual Studio 2022 (or compatible C++ build tools)
+*   CMake (version 3.15 or higher)
+*   vcpkg (for dependency management)
+
+For detailed build instructions and configuration options, please refer to the [Build Configuration Guide](docs/BUILD_CONFIGURATION.md).
+
 ### Application Configuration
 
 #### Configuration File: `config/SystemMonitor.cfg`

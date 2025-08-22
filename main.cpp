@@ -15,6 +15,7 @@
 #include "include/ProcessManager.h"
 #include "include/SystemMonitor.h"
 #include "include/EmailNotifier.h"
+#include "include/SystemInfo.h"
 
     // Global flag to control console output during top-style display
 bool g_suppressConsoleOutput = false;

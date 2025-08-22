@@ -1,4 +1,4 @@
-#include "SystemInfo.h"
+#include "../include/SystemInfo.h"
 
 #if defined(_WIN32)
 #include <windows.h>

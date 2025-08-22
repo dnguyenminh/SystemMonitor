@@ -1,52 +1,38 @@
 name: SystemMonitor CI/CD v2
-
 on:
-  # Trigger on every push to main branch and tags
   push:
     branches: [ main, develop ]
     tags:
       - 'v*'
-  
-  # Trigger on pull requests
   pull_request:
     branches: [ main ]
-  
-  # Allow manual triggering
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version (e.g., v1.0.0)'
         required: false
         default: ''
-
 env:
   BUILD_TYPE: Release
   VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-
 jobs:
-  # Continuous Integration - Build on every commit
   build:
     name: Build SystemMonitor
     runs-on: windows-2022
-    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         submodules: recursive
-
     - name: Setup Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-
     - name: Restore VCPKG_ROOT environment variable
       run: |
-        # The msvc-dev-cmd action overrides VCPKG_ROOT, so we need to restore it
         $originalVcpkgRoot = "${{ github.workspace }}\vcpkg"
         Write-Host "Restoring VCPKG_ROOT to: $originalVcpkgRoot"
         echo "VCPKG_ROOT=$originalVcpkgRoot" >> $env:GITHUB_ENV
-
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -54,7 +40,6 @@ jobs:
         key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', 'build.bat') }}
         restore-keys: |
           ${{ runner.os }}-vcpkg-
-
     - name: Setup vcpkg
       run: |
         if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
@@ -62,63 +47,43 @@ jobs:
         }
         Set-Location "${{ env.VCPKG_ROOT }}"
         .\bootstrap-vcpkg.bat
-        
-        # Force integration and verify
         Write-Host "🔧 Integrating vcpkg..."
         .\vcpkg integrate install
-        
-        # Verify vcpkg is working
         Write-Host "🔍 Verifying vcpkg installation..."
         .\vcpkg version
-        
-        # Set integration environment variable
         $env:VCPKG_ROOT="${{ env.VCPKG_ROOT }}"
         Write-Host "Environment VCPKG_ROOT set to: $env:VCPKG_ROOT"
-
     - name: Install dependencies
       run: |
         Set-Location "${{ env.VCPKG_ROOT }}"
-        
-        # Debug vcpkg environment
         Write-Host "🔍 Debugging vcpkg installation..."
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "VCPKG_ROOT: ${{ env.VCPKG_ROOT }}"
-        
-        # Ensure we're using the correct triplet
         Write-Host "📦 Installing libcurl with SSL support..."
         Write-Host "Using vcpkg at: ${{ env.VCPKG_ROOT }}"
         .\vcpkg install curl[ssl]:x64-windows-static --recurse --classic
-        
-        # Debug installation
         Write-Host "📂 Checking vcpkg directory structure..."
         Get-ChildItem "${{ env.VCPKG_ROOT }}" -ErrorAction SilentlyContinue | Format-Table Name, Attributes
-        
         if (Test-Path "${{ env.VCPKG_ROOT }}\installed") {
           Write-Host "📂 Installed directory exists"
           Get-ChildItem "${{ env.VCPKG_ROOT }}\installed" -ErrorAction SilentlyContinue | Format-Table Name, Attributes
-          
           if (Test-Path "${{ env.VCPKG_ROOT }}\installed\x64-windows-static") {
             Write-Host "📂 x64-windows-static directory exists"
             Get-ChildItem "${{ env.VCPKG_ROOT }}\installed\x64-windows-static" -ErrorAction SilentlyContinue | Format-Table Name, Attributes
-            
             if (Test-Path "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include") {
               Write-Host "📂 Include directory exists"
               Get-ChildItem "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include" -ErrorAction SilentlyContinue | Format-Table Name, Attributes
             }
           }
         }
-        
-        # Verify installation with multiple path formats
         $curlHeaderPath1 = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h"
         $curlHeaderPath2 = "${{ env.VCPKG_ROOT }}/installed/x64-windows-static/include/curl/curl.h"
         $curlLibPath = "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\lib\libcurl.lib"
-        
         Write-Host "🔍 Testing header paths:"
         Write-Host "Path 1 (backslash): $curlHeaderPath1"
         Write-Host "Path 1 exists: $(Test-Path $curlHeaderPath1)"
         Write-Host "Path 2 (forward slash): $curlHeaderPath2"
         Write-Host "Path 2 exists: $(Test-Path $curlHeaderPath2)"
-        
         if (Test-Path $curlHeaderPath1) {
           Write-Host "✅ libcurl headers installed: $curlHeaderPath1"
         } elseif (Test-Path $curlHeaderPath2) {
@@ -129,7 +94,6 @@ jobs:
           Get-ChildItem "${{ env.VCPKG_ROOT }}" -Recurse -Filter "curl.h" -ErrorAction SilentlyContinue | Format-Table FullName
           exit 1
         }
-        
         if (Test-Path $curlLibPath) {
           Write-Host "✅ libcurl library installed: $curlLibPath"
         } else {
@@ -138,113 +102,26 @@ jobs:
           Get-ChildItem "${{ env.VCPKG_ROOT }}" -Recurse -Filter "*.lib" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*curl*" } | Format-Table FullName
           exit 1
         }
-        
         Write-Host "📂 Installed packages:"
         .\vcpkg list --classic
-        
     - name: Build SystemMonitor
       run: |
-        # Normalize vcpkg path for Windows
+        Write-Host "🔨 Building SystemMonitor with CMake..."
         $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
-        
-        Write-Host "🔧 Setting up build environment:"
-        Write-Host "  Original VCPKG_ROOT: ${{ env.VCPKG_ROOT }}"
-        Write-Host "  Normalized VCPKG_ROOT: $vcpkgRoot"
-        
-        # Find Visual Studio installation
-        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        $vsPath = ""
-        
-        if (Test-Path $vsWhere) {
-          $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($vsPath) {
-            Write-Host "✅ Found Visual Studio at: $vsPath"
-          }
-        }
-        
-        # Fallback to manual search if vswhere fails
-        if (-not $vsPath) {
-          $possiblePaths = @(
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
-            "C:\Program Files\Microsoft Visual Studio\2022\Professional", 
-            "C:\Program Files\Microsoft Visual Studio\2022\Community",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
-            "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise"
-          )
-          
-          foreach ($path in $possiblePaths) {
-            if (Test-Path "$path\VC\Auxiliary\Build\vcvars64.bat") {
-              $vsPath = $path
-              Write-Host "✅ Found Visual Studio at: $path (fallback)"
-              break
-            }
-          }
-        }
-        
-        # Final verification before build
-        $curlHeaderPath = "$vcpkgRoot\installed\x64-windows-static\include\curl\curl.h"
-        if (Test-Path $curlHeaderPath) {
-          Write-Host "✅ Final verification: libcurl headers found at $curlHeaderPath"
-        } else {
-          Write-Host "❌ Final verification: libcurl headers missing at $curlHeaderPath"
-          exit 1
-        }
-        
-        Write-Host "🔨 Building SystemMonitor with:"
-        Write-Host "  VS Path: $vsPath"
-        Write-Host "  vcpkg: $vcpkgRoot"
-        Write-Host "  Target: x64-windows-static"
-        
-        # Create a temporary batch file to ensure environment variables are passed correctly
-        $buildCommands = @(
-          "@echo off",
-          "set ""VCPKG_ROOT=$vcpkgRoot""",
-          "set ""VCPKG_TARGET=x64-windows-static""",
-          "set ""OUTPUT_DIR=bin"""
-        )
-        
-        if ($vsPath) {
-          $buildCommands += "set ""VS_BUILD_TOOLS_PATH=$vsPath"""
-        }
-        
-        $buildCommands += @(
-          "echo Environment variables set:",
-          "echo   VCPKG_ROOT=%VCPKG_ROOT%",
-          "echo   VCPKG_TARGET=%VCPKG_TARGET%",
-          "echo   OUTPUT_DIR=%OUTPUT_DIR%"
-        )
-        
-        if ($vsPath) {
-          $buildCommands += "echo   VS_BUILD_TOOLS_PATH=%VS_BUILD_TOOLS_PATH%"
-        }
-        
-        $buildCommands += @(
-          "echo.",
-          "call build.bat"
-        )
-        
-        $buildCommands | Out-File -FilePath "build-temp.bat" -Encoding ASCII
-        
-        # Execute the temporary build script
-        & .\build-temp.bat
-        
-        # Clean up
-        Remove-Item "build-temp.bat" -ErrorAction SilentlyContinue
-        
-        # Verify build succeeded
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $toolchainFile = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake"
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$toolchainFile" -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
         if (-not (Test-Path "bin\SystemMonitor.exe")) {
           Write-Host "❌ Build failed - SystemMonitor.exe not found"
           exit 1
         }
-
     - name: Test executable
       run: |
         if (Test-Path "bin\SystemMonitor.exe") {
           Write-Host "✅ SystemMonitor.exe built successfully"
           $size = (Get-Item "bin\SystemMonitor.exe").Length / 1MB
           Write-Host "📊 Executable size: $([math]::Round($size, 2)) MB"
-          
-          # Test executable runs (help command)
           try {
             $output = & .\bin\SystemMonitor.exe --help 2>&1
             Write-Host "✅ Executable test passed"
@@ -255,7 +132,6 @@ jobs:
           Write-Host "❌ SystemMonitor.exe not found"
           exit 1
         }
-
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
@@ -267,7 +143,6 @@ jobs:
           config/*.cfg.template
           README.md.cfg
         retention-days: 30
-
     - name: Upload build logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
@@ -277,38 +152,32 @@ jobs:
           *.log
           *.err
         retention-days: 7
-
-  # Release Job - Only runs on tags
   release:
     name: Create Release
     runs-on: windows-2022
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
-    
+    permissions:
+      contents: write
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         submodules: recursive
-
     - name: Setup Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
-
     - name: Restore VCPKG_ROOT environment variable
       run: |
-        # The msvc-dev-cmd action overrides VCPKG_ROOT, so we need to restore it
         $originalVcpkgRoot = "${{ github.workspace }}\vcpkg"
         Write-Host "Restoring VCPKG_ROOT to: $originalVcpkgRoot"
         echo "VCPKG_ROOT=$originalVcpkgRoot" >> $env:GITHUB_ENV
-
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
         path: ${{ env.VCPKG_ROOT }}
         key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', 'build.bat') }}
-
     - name: Setup vcpkg
       run: |
         if (-not (Test-Path "${{ env.VCPKG_ROOT }}")) {
@@ -317,35 +186,24 @@ jobs:
         Set-Location "${{ env.VCPKG_ROOT }}"
         .\bootstrap-vcpkg.bat
         .\vcpkg integrate install
-
     - name: Install dependencies
       run: |
         Set-Location "${{ env.VCPKG_ROOT }}"
-        
-        # Install libcurl with SSL support for release
         Write-Host "📦 Installing libcurl with SSL support for release..."
         Write-Host "Using vcpkg at: ${{ env.VCPKG_ROOT }}"
         .\vcpkg install curl[ssl]:x64-windows-static --recurse --classic
-        
-        # Verify installation
         if (Test-Path "${{ env.VCPKG_ROOT }}\installed\x64-windows-static\include\curl\curl.h") {
           Write-Host "✅ libcurl headers verified for release build"
         } else {
           Write-Host "❌ libcurl headers missing for release build"
           exit 1
         }
-        
     - name: Build SystemMonitor for Release
       run: |
-        # Normalize paths for Windows batch file compatibility  
         $vcpkgRoot = "${{ env.VCPKG_ROOT }}".Replace('/', '\')
-        
-        # Set environment variables for build script
         $env:VCPKG_ROOT = $vcpkgRoot
         $env:VCPKG_TARGET = "x64-windows-static"
         $env:OUTPUT_DIR = "bin"
-        
-        # Find Visual Studio installation using vswhere
         $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         if (Test-Path $vsWhere) {
           $vsPath = & $vsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -354,23 +212,17 @@ jobs:
             Write-Host "✅ Found Visual Studio at: $vsPath"
           }
         }
-        
         Write-Host "🔨 Building SystemMonitor for Release"
         .\build.bat
-
-    - name: Create Release Package
+    - name: Generate Release Package and Notes
       run: |
-        $version = $env:GITHUB_REF_NAME
+        $version = "${{ github.ref_name }}" # Lấy phiên bản từ tag
         $releaseDir = "SystemMonitor-$version"
-        
-        # Create release directory structure
         New-Item -ItemType Directory -Path $releaseDir -Force
         New-Item -ItemType Directory -Path "$releaseDir\config" -Force
         New-Item -ItemType Directory -Path "$releaseDir\docs" -Force
-        
-        # Copy files
-        Copy-Item "bin\SystemMonitor.exe" "$releaseDir\"
-        # Copy configuration templates
+        New-Item -ItemType Directory -Path "$releaseDir\bin" -Force
+        Copy-Item "bin\SystemMonitor.exe" "$releaseDir\bin\"
         if (Test-Path "config\SystemMonitor.cfg.template") {
           Copy-Item "config\SystemMonitor.cfg.template" "$releaseDir\config\"
         }
@@ -381,120 +233,16 @@ jobs:
           Copy-Item "config\SystemMonitor.cfg.email-sample" "$releaseDir\config\"
         }
         Copy-Item "README.md" "$releaseDir\"
-        
-        # Copy documentation if exists
         if (Test-Path "docs") { 
           Copy-Item "docs\*" "$releaseDir\docs\" -Recurse -ErrorAction SilentlyContinue
         }
-        
-        # Create deployment guide
-        $currentDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC'
-        $deploymentContent = @'
-# SystemMonitor $version - Deployment Package
-
-## 🚀 Quick Start
-1. Extract all files to your preferred directory
-2. Copy config\SystemMonitor.cfg.template to config\SystemMonitor.cfg
-3. Edit config\SystemMonitor.cfg with your email settings
-4. Run: SystemMonitor.exe --display silence
-
-## ✨ Features
-- Real-time Monitoring: CPU, RAM, and Disk usage tracking
-- TLS Email Alerts: Secure Gmail SMTP notifications
-- Multiple Display Modes: Line, top, compact, silence
-- Static Linking: No external dependencies required
-- Enterprise Ready: Professional monitoring solution
-
-## 📋 Requirements
-- Windows 10/11 or Windows Server 2016+
-- Visual C++ Redistributable 2022 (typically pre-installed)
-
-## ⚙️ Configuration
-Edit config\SystemMonitor.cfg:
-- Set monitoring thresholds (CPU/RAM/Disk %)
-- Configure Gmail SMTP with App Password
-- Customize alert timing and cooldown periods
-
-## 🔗 Support
-- GitHub: https://github.com/dnguyenminh/SystemMonitor
-- Documentation: See docs/ folder
-- Issues: Report via GitHub Issues
-
-## 🏷️ Version Information
-- Version: $version
-- Build Date: $currentDate
-- Compiler: MSVC with static libcurl
-- Dependencies: Statically linked (self-contained)
-'@
-        
-        $deploymentContent = $deploymentContent.Replace('$version', $version).Replace('$currentDate', $currentDate)
-        $deploymentContent | Out-File -FilePath "$releaseDir\DEPLOYMENT_README.md" -Encoding UTF8
-        
-        # Create ZIP archive
-        Compress-Archive -Path "bin", "docs", "README.md" -DestinationPath "SystemMonitor-$version.zip" -Force
-        
-        # Set environment variables for next steps
-        echo "RELEASE_FILE=SystemMonitor-$version.zip" >> $env:GITHUB_ENV
-        echo "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV
-        echo "VERSION=$version" >> $env:GITHUB_ENV
-
-    - name: Generate Release Notes
-      run: |
-        $version = $env:VERSION
-        $currentDate = Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC'
-        $releaseNotes = @'
-## SystemMonitor $version
-
-### 🎯 What's New
-- Enterprise-grade system monitoring with TLS email alerts
-- Static linking for easy deployment (no dependencies)
-- Multiple display modes for different use cases
-- Configurable thresholds and smart alerting
-
-### 📦 Deployment
-- Self-contained: No vcpkg or external libraries needed
-- Production ready: Suitable for server monitoring
-- Easy setup: Extract, configure, and run
-
-### 🔧 Features
-- Real-time monitoring: CPU, RAM, Disk usage
-- Email notifications: TLS-encrypted Gmail SMTP
-- Silent operation: Perfect for background monitoring
-- Professional logging: Rotation and debug support
-
-### 📥 Installation
-1. Download SystemMonitor-$version.zip
-2. Extract to your target directory
-3. Configure config/SystemMonitor.cfg
-4. Run: SystemMonitor.exe --display silence
-
-### 🏗️ Build Information
-- Compiled: $currentDate
-- Compiler: Visual Studio 2022 (MSVC)
-- Dependencies: libcurl with TLS (statically linked)
-- Platform: Windows x64
-
-Built automatically by GitHub Actions from commit $env:GITHUB_SHA
-'@
-        
-        $releaseNotes = $releaseNotes.Replace('$version', $version).Replace('$currentDate', $currentDate)
-        $releaseNotes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
-        echo "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
-        $releaseNotes >> $env:GITHUB_ENV
-        echo "EOF" >> $env:GITHUB_ENV
-
+        # Gọi tệp PowerShell riêng
+        .\generate-release.ps1 -version $version -releaseDir $releaseDir
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ env.RELEASE_FILE }}
-        name: SystemMonitor ${{ env.VERSION }}
-        body: ${{ env.RELEASE_NOTES }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      run: |
+        gh release create ${{ env.VERSION }} --generate-notes ${{ env.RELEASE_FILE }}
     - name: Upload Release Artifact
       uses: actions/upload-artifact@v4
       with:

@@ -1,36 +1,17 @@
 @echo off
-setlocal enabledelayedexpansion
-REM SystemMonitor Build Script with libcurl TLS Integration
-REM This script compiles SystemMonitor with secure email capabilities
+REM SystemMonitor Build Script using CMake and vcpkg
+REM This script can be run locally or in a CI environment.
 
-echo ====================================================
-echo  SystemMonitor Build Script - libcurl TLS Edition
-echo ====================================================
+setlocal
 
-REM =================================================================
-REM Configuration Variables - Modify these paths for your environment
-REM =================================================================
-REM Visual Studio installation path - try multiple common locations
-if not defined VS_BUILD_TOOLS_PATH (
-    REM Try Enterprise first (GitHub Actions)
-    if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
-        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
-    ) else if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" (
-        set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
-    ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
-        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional"
-    ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
-        set "VS_BUILD_TOOLS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Community"
-    ) else (
-        set "VS_BUILD_TOOLS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
-    )
-)
-
-REM vcpkg installation path - normalize forward slashes to backslashes for Windows
-if not defined VCPKG_ROOT (
-    REM Default fallback - prefer workspace vcpkg if it exists
-    if exist "%~dp0vcpkg" (
+REM --- Locate vcpkg ---
+IF DEFINED VCPKG_ROOT (
+    echo "Using VCPKG_ROOT from environment: %VCPKG_ROOT%"
+) ELSE (
+    echo "VCPKG_ROOT not set. Searching for vcpkg directory at the project root..."
+    IF EXIST "%~dp0vcpkg" (
         set "VCPKG_ROOT=%~dp0vcpkg"
+<<<<<<< HEAD
         echo Using workspace vcpkg: "%~dp0vcpkg"
     ) else if exist "c:\vcpkg" (
         set "VCPKG_ROOT=c:\vcpkg"
@@ -172,28 +153,37 @@ if not defined CL_PATH (
         echo Fallback: Using hardcoded x64 cl.exe path
     ) else (
         echo ERROR: x64 cl.exe not found in PATH or at expected location after vcvars64.bat
+=======
+        echo "Found vcpkg at: %VCPKG_ROOT%"
+    ) ELSE (
+        echo "Error: Could not find the vcpkg directory."
+        echo "Please do one of the following:"
+        echo "1. Set the VCPKG_ROOT environment variable to your vcpkg installation path."
+        echo "2. Clone vcpkg into the project's root directory: git clone https://github.com/Microsoft/vcpkg.git"
+>>>>>>> upstream/main
         exit /b 1
     )
 )
-echo Debug: Current VCPKG_ROOT after VS setup: "%VCPKG_ROOT%"
-echo Debug: VCPKG paths that will be used in compilation:
-echo Debug: Include flag: /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
-echo Debug: Library path: /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
 
-REM Verify the paths exist before compiling
-if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" (
-    echo ERROR: Include directory missing: "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include"
-    exit /b 1
+REM --- Bootstrap vcpkg if needed ---
+IF NOT EXIST "%VCPKG_ROOT%\vcpkg.exe" (
+    echo "vcpkg executable not found, running bootstrap script..."
+    call "%VCPKG_ROOT%\bootstrap-vcpkg.bat" -disableMetrics
+    IF NOT EXIST "%VCPKG_ROOT%\vcpkg.exe" (
+        echo "Error: vcpkg bootstrap failed."
+        exit /b 1
+    )
 )
 
-if not exist "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" (
-    echo ERROR: Library directory missing: "%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib"
-    exit /b 1
-)
+REM --- Install dependencies ---
+echo "Installing dependencies using vcpkg..."
+"%VCPKG_ROOT%\vcpkg" install --triplet x64-windows-static
 
-echo Debug: ✅ All required directories exist
-echo.
+REM --- Configure and Build ---
+set "TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake"
+echo "Using Toolchain File: %TOOLCHAIN_FILE%"
 
+<<<<<<< HEAD
 REM Compile with libcurl TLS support (STATIC externals, dynamic system/CRT)
 "%CL_PATH%" /EHsc /std:c++17 /MD /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    main.cpp ^
@@ -211,19 +201,17 @@ REM Compile with libcurl TLS support (STATIC externals, dynamic system/CRT)
    ws2_32.lib wldap32.lib advapi32.lib crypt32.lib normaliz.lib ^
    user32.lib kernel32.lib iphlpapi.lib secur32.lib ^
    /OUT:"%OUTPUT_DIR%\%EXE_NAME%" /machine:x64
+=======
+echo "Configuring project with CMake..."
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN_FILE%" -DCMAKE_BUILD_TYPE=Release -DVCPKG_TARGET_TRIPLET=x64-windows-static
+>>>>>>> upstream/main
 
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo ❌ Build failed! Check for missing dependencies or compilation errors.
-    echo Note: Full SystemMonitor compilation requires all factory implementations.
-    echo.
-    exit /b 1
-)
+echo "Building project..."
+cmake --build build --config Release
 
-REM Clean up object files after successful compilation
-echo Cleaning up object files...
-del /q *.obj 2>nul
+endlocal
 
+<<<<<<< HEAD
 echo.
 echo ✅ SystemMonitor with libcurl TLS integration compiled successfully!
 echo Executable: "%OUTPUT_DIR%\%EXE_NAME%"
@@ -238,3 +226,6 @@ echo To run: ".\%OUTPUT_DIR%\%EXE_NAME%"
 echo Config: config\SystemMonitor.cfg
 echo.
 REM pause - removed for CI/CD compatibility
+=======
+echo "Build finished. The executable should be in the bin/ directory."
+>>>>>>> upstream/main

@@ -1,0 +1,8 @@
+{
+  "name": "systemmonitor",
+  "version-string": "0.1.0",
+  "builtin-baseline": "2cbba3c698606151118d49df5864af6fd71b9414",
+  "dependencies": [
+    "curl"
+  ]
+}

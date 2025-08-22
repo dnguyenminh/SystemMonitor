@@ -1,22 +1,21 @@
 @echo off
+<<<<<<< HEAD
 REM SystemMonitor Build Script for CI/CD
 REM Updated: Static externals, dynamic CRT/system
+=======
+REM SystemMonitor CI Static Build Script (CMake + vcpkg manifest mode)
+>>>>>>> upstream/main
 
-echo ====================================================
-echo  SystemMonitor CI/CD Build Script
-echo ====================================================
+REM Step 1: Install static dependencies
+vcpkg install --triplet x64-windows-static
 
-REM =================================================================
-REM Configuration Variables - Override with environment variables
-REM =================================================================
-if not defined VCPKG_ROOT (
-    set "VCPKG_ROOT=c:\vcpkg"
-)
+REM Step 2: Configure CMake with static toolchain
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
 
-if not defined VCPKG_TARGET (
-    set "VCPKG_TARGET=x64-windows-static"
-)
+REM Step 3: Build release executable
+cmake --build build --config Release --clean-first
 
+<<<<<<< HEAD
 if not defined OUTPUT_DIR (
     set "OUTPUT_DIR=bin"
 )
@@ -112,3 +111,6 @@ echo   - Email alerts with libcurl TLS encryption
 echo   - Gmail SMTP with App Password authentication
 echo   - Professional alert and recovery notifications
 echo.
+=======
+REM Output: bin\SystemMonitor.exe
+>>>>>>> upstream/main

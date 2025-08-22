@@ -83,6 +83,7 @@ cl /EHsc /std:c++17 /MD /DWIN32_LEAN_AND_MEAN /DCURL_STATICLIB ^
    src/Configuration.cpp ^
    src/ConsoleDisplay.cpp ^
    src/SystemMonitor.cpp ^
+   src/SystemInfo.cpp ^
    /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" ^
    /link /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" ^
    libcurl.lib zlib.lib ^

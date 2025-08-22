@@ -204,6 +204,7 @@ REM Compile with libcurl TLS support (STATIC externals, dynamic system/CRT)
    src/Configuration.cpp ^
    src/ConsoleDisplay.cpp ^
    src/SystemMonitor.cpp ^
+   src/SystemInfo.cpp ^
    /I"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\include" ^
    /link /LIBPATH:"%VCPKG_ROOT%\installed\%VCPKG_TARGET%\lib" ^
    libcurl.lib zlib.lib ^
